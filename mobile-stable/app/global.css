@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+
+
+@source "./screens/**/*.tsx";
+@source "./components/**/*.tsx";
+@source "./App.tsx";
