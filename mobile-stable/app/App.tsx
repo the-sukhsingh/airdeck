@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useColorScheme } from "react-native";
 import { connectionService, SlideInfo } from "../src/services/connection";
 
 import ConnectScreen from "./screens/ConnectScreen";
@@ -14,6 +15,14 @@ export default function App() {
   const [passcode, setPasscode] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [fingerprint, setFingerprint] = useState<string>("");
+
+  // Theme State
+  const systemScheme = useColorScheme();
+  const [theme, setTheme] = useState<"light" | "dark">(systemScheme === "light" ? "light" : "dark");
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
 
   // Active Presentation States
   const [prezName, setPrezName] = useState<string>("No Presentation");
@@ -80,6 +89,7 @@ export default function App() {
   const handleQRScan = async (data: string) => {
     setErrorMsg("");
     try {
+      console.log(data)
       const payload = JSON.parse(data);
       if (payload.ips && payload.port && payload.roomId && payload.passcode) {
         const primaryIP = `${payload.ips[0]}:${payload.port}`;
@@ -115,6 +125,8 @@ export default function App() {
         passcode={passcode}
         setPasscode={setPasscode}
         errorMsg={errorMsg}
+        theme={theme}
+        toggleTheme={toggleTheme}
         onConnect={handleConnect}
         onScanQR={handleQRScan}
       />
@@ -125,6 +137,7 @@ export default function App() {
     return (
       <AuthenticatingScreen
         fingerprint={fingerprint}
+        theme={theme}
         onCancel={disconnect}
       />
     );
@@ -137,6 +150,8 @@ export default function App() {
       totalSlides={totalSlides}
       notes={notes}
       toc={toc}
+      theme={theme}
+      toggleTheme={toggleTheme}
       onDisconnect={disconnect}
       sendEncryptedCommand={sendEncryptedCommand}
     />

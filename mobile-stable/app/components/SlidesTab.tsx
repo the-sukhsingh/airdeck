@@ -5,21 +5,38 @@ import { SlideInfo } from "../../src/services/connection";
 interface SlidesTabProps {
   toc: SlideInfo[];
   currentSlide: number;
+  theme: "light" | "dark";
   onGotoSlide: (index: number) => void;
 }
 
 export default function SlidesTab({
   toc,
   currentSlide,
+  theme,
   onGotoSlide,
 }: SlidesTabProps) {
+  const isLight = theme === "light";
+  const bgCard = isLight ? "#ffffff" : "#18181b";
+  const borderCol = isLight ? "#e4e4e7" : "#27272a";
+  const textPrimary = isLight ? "#0f0f11" : "#f4f4f5";
+  const textSecondary = isLight ? "#71717a" : "#a1a1aa";
+
   return (
     <View className="flex-1 px-4">
-      <Text className="text-lg font-bold text-white mb-2">Table of Contents</Text>
+      <Text
+        style={{ color: textPrimary }}
+        className="text-lg font-semibold mb-2 tracking-tight"
+      >
+        Table of Contents
+      </Text>
+
       {toc.length === 0 ? (
-        <View className="flex-1 border border-[#262626] border-dashed items-center justify-center p-6">
-          <Text className="text-[#525252] text-xs">
-            No slides list details sync'd from desktop.
+        <View
+          style={{ borderColor: borderCol, backgroundColor: bgCard }}
+          className="flex-1 border border-dashed items-center justify-center p-6 rounded-lg"
+        >
+          <Text style={{ color: textSecondary }} className="text-xs">
+            No slides list details sync&apos;d from desktop.
           </Text>
         </View>
       ) : (
@@ -30,20 +47,42 @@ export default function SlidesTab({
               return (
                 <TouchableOpacity
                   key={item.index}
-                  className={`w-[48%] h-[100px] border p-3 justify-between rounded-xl  ${
-                    isActive ? "bg-white border-black" : "border-white"
-                  }`}
+                  style={{
+                    backgroundColor: isActive
+                      ? isLight
+                        ? "#18181b"
+                        : "#f4f4f5"
+                      : bgCard,
+                    borderColor: isActive
+                      ? isLight
+                        ? "#18181b"
+                        : "#f4f4f5"
+                      : borderCol,
+                  }}
+                  className="w-[48%] h-[100px] border p-3 justify-between rounded-lg"
                   onPress={() => onGotoSlide(item.index)}
                 >
                   <Text
-                    className={`text-lg font-extrabold ${
-                      isActive ? "text-black" : "text-[#525252]"
-                    }`}
+                    style={{
+                      color: isActive
+                        ? isLight
+                          ? "#ffffff"
+                          : "#0f0f11"
+                        : textSecondary,
+                    }}
+                    className="text-lg font-bold"
                   >
                     {item.index}
                   </Text>
                   <Text
-                    className={`text-[11px] font-bold `}
+                    style={{
+                      color: isActive
+                        ? isLight
+                          ? "#e4e4e7"
+                          : "#27272a"
+                        : textPrimary,
+                    }}
+                    className="text-[11px] font-semibold"
                     numberOfLines={2}
                   >
                     {item.title}

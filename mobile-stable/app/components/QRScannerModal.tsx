@@ -1,33 +1,55 @@
-import React from 'react';
-import { StyleSheet, Text, View, Modal, TouchableOpacity, Platform } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import React from "react";
+import { StyleSheet, Text, View, Modal, TouchableOpacity } from "react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 interface QRScannerModalProps {
   visible: boolean;
+  theme?: "light" | "dark";
   onClose: () => void;
   onScan: (data: string) => void;
 }
 
-export default function QRScannerModal({ visible, onClose, onScan }: QRScannerModalProps) {
+export default function QRScannerModal({
+  visible,
+  theme,
+  onClose,
+  onScan,
+}: QRScannerModalProps) {
   const [permission, requestPermission] = useCameraPermissions();
 
   if (!visible) return null;
 
+  const isLight = theme === "light";
+  const bgColor = isLight ? "#fafafa" : "#0f0f11";
+  const textColor = isLight ? "#0f0f11" : "#ffffff";
+  const btnBg = isLight ? "#ffffff" : "#18181b";
+  const btnBorder = isLight ? "#e4e4e7" : "#27272a";
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: bgColor }]}>
         {!permission ? (
           <View style={styles.center}>
-            <Text style={styles.text}>Requesting camera permission...</Text>
+            <Text style={[styles.text, { color: textColor }]}>
+              Requesting camera permission...
+            </Text>
           </View>
         ) : !permission.granted ? (
           <View style={styles.center}>
-            <Text style={styles.text}>We need your permission to show the camera</Text>
-            <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-              <Text style={styles.btnText}>Grant Permission</Text>
+            <Text style={[styles.text, { color: textColor }]}>
+              We need your permission to show the camera
+            </Text>
+            <TouchableOpacity
+              style={[styles.btn, { backgroundColor: btnBg, borderColor: btnBorder }]}
+              onPress={requestPermission}
+            >
+              <Text style={[styles.btnText, { color: textColor }]}>Grant Permission</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={onClose}>
-              <Text style={styles.btnText}>Cancel</Text>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnCancel, { borderColor: btnBorder }]}
+              onPress={onClose}
+            >
+              <Text style={[styles.btnText, { color: textColor }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -45,8 +67,14 @@ export default function QRScannerModal({ visible, onClose, onScan }: QRScannerMo
           >
             <View style={styles.overlay}>
               <View style={styles.scanArea} />
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-                <Text style={styles.closeBtnText}>CLOSE CAMERA</Text>
+              <TouchableOpacity
+                style={[
+                  styles.closeBtn,
+                  { backgroundColor: btnBg, borderColor: btnBorder },
+                ]}
+                onPress={onClose}
+              >
+                <Text style={[styles.closeBtnText, { color: textColor }]}>CLOSE CAMERA</Text>
               </TouchableOpacity>
             </View>
           </CameraView>
@@ -59,69 +87,64 @@ export default function QRScannerModal({ visible, onClose, onScan }: QRScannerMo
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   center: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   text: {
-    color: '#fff',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 24,
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: 20,
+    fontWeight: "500",
   },
   btn: {
-    backgroundColor: '#fff',
     paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingVertical: 12,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#262626',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
     maxWidth: 240,
   },
   btnCancel: {
-    backgroundColor: 'transparent',
-    borderColor: '#525252',
+    backgroundColor: "transparent",
     borderWidth: 1,
   },
   btnText: {
-    color: '#000',
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 12,
     letterSpacing: 0.5,
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   scanArea: {
     width: 220,
     height: 220,
     borderWidth: 2,
-    borderColor: '#ffffff',
-    backgroundColor: 'transparent',
+    borderColor: "#ffffff",
+    backgroundColor: "transparent",
+    borderRadius: 8,
   },
   closeBtn: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 64,
-    backgroundColor: '#1c1c1c',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#262626',
+    borderRadius: 6,
   },
   closeBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 12,
+    fontWeight: "bold",
+    fontSize: 11,
     letterSpacing: 1,
-  }
+  },
 });
