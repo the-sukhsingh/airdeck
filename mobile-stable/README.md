@@ -1,50 +1,68 @@
-# Welcome to your Expo app 👋
+# AirDeck Controller (Mobile)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This is the mobile remote controller app for the **AirDeck** secure presentation ecosystem. It enables you to control presentation slides running on your laptop directly from your phone over local Wi-Fi or Bluetooth.
 
-## Get started
+Built with **React Native (Expo)**, TypeScript, and styled using a clean minimalist design.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## ✨ Features
 
-2. Start the app
+- **Minimal QR Pairing:** Point your phone camera at the QR code displayed on the desktop app to pair instantly over Wi-Fi. No manual IP typing or passcode entries required.
+- **Offline Bluetooth Mode (BLE):** Scan and connect to your laptop directly using Bluetooth Low Energy (BLE) for environments without a shared Wi-Fi network.
+- **Slide Notes & Table of Contents:** Displays real-time presenter notes and slide titles on your phone screen so you stay on track.
+- **Gesture Control Touchpad:** Swipe and tap on the controller touchpad to navigate slides seamlessly.
+- **End-to-End Encrypted (E2EE):** Automatically negotiates a cryptographic shared key (ECDH P-256) on connection, encrypting all control packets using AES-256-GCM.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🛠️ Prerequisites
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+To run the mobile application locally, you will need:
+- **Node.js** (LTS) & npm.
+- **Expo Go** app installed on your physical iOS/Android device, or configured local Emulators (Android Studio / Xcode).
+- **Physical Device Permissions:** The app requires access to the **Camera** (for QR scanning) and **Location/Bluetooth** (for BLE scanning and connecting).
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## 🚀 Getting Started
 
-When you're ready, run:
-
+### 1. Install Dependencies
+Navigate into the mobile directory and install the packages:
 ```bash
-npm run reset-project
+cd mobile-stable
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Start the Development Server
+```bash
+npm run start
+# or
+npx expo start
+```
+*This starts the Expo bundler. Scan the terminal's QR code using your phone's camera (iOS) or the Expo Go app (Android) to load the app.*
 
-## Learn more
+### 3. Run Native Builds (Recommended for BLE/WebRTC support)
+To compile the native app binaries locally on your computer:
+```bash
+# Android Build
+npm run android
 
-To learn more about developing your project with Expo, look at the following resources:
+# iOS Build
+npm run ios
+```
+*Note: Using a native build is recommended because features like native WebRTC and BLE plx drivers require native compilation.*
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## 📁 File Structure
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- `/app`: Main application screens and routing logic:
+  - `App.tsx`: App entry, handles global theme, screen routing, and connection service hooks.
+  - `/screens/ConnectScreen.tsx`: The minimalist welcome page for scanning QR codes and BLE presenters.
+  - `/screens/AuthenticatingScreen.tsx`: Secure handshake progress page.
+  - `/screens/ControllerScreen.tsx`: Touchpad gesture pad, slide list view, notes panel, and status dashboard.
+  - `/components/QRScannerModal.tsx`: Native camera view overlay for scanning pairing codes.
+- `/src/services`: Connection and crypto utilities:
+  - `connection.ts`: Manages WebRTC connection states, WebSocket handshakes, and BLE services.
+  - `crypto.ts`: Implements SHA-256 hashing, P-256 ECDH, and AES-GCM decryption/encryption helpers.

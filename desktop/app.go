@@ -13,10 +13,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/big"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -124,25 +126,29 @@ func (a *App) GetLibrary() ([]storage.Presentation, error) {
 	}
 	list := a.storage.GetPresentations()
 	if len(list) == 0 {
-		mockP := storage.Presentation{
-			ID:        "test-pptx-id",
-			Name:      "[EXT] Solution Challenge 2026 - Prototype PPT Template (1).pptx",
-			Source:    "pptx",
-			FilePath:  `C:\Users\sukha\Downloads\[EXT] Solution Challenge 2026 - Prototype PPT Template (1).pptx`,
-			IsStarred: false,
-			Folder:    "",
-			TotalSlides: 14,
-			Slides:    []storage.SlideData{},
-			CreatedAt: time.Now().UnixNano() / int64(time.Millisecond),
+		mockPath := `C:\Users\sukha\Downloads\[EXT] Solution Challenge 2026 - Prototype PPT Template (1).pptx`
+		if _, err := os.Stat(mockPath); err == nil {
+			mockP := storage.Presentation{
+				ID:        "test-pptx-id",
+				Name:      "[EXT] Solution Challenge 2026 - Prototype PPT Template (1).pptx",
+				Source:    "pptx",
+				FilePath:  mockPath,
+				IsStarred: false,
+				Folder:    "",
+				TotalSlides: 14,
+				Slides:    []storage.SlideData{},
+				CreatedAt: time.Now().UnixNano() / int64(time.Millisecond),
+			}
+			slides, err := pptx.ParsePPTX(mockP.FilePath)
+			if err == nil {
+				mockP.Slides = slides
+				mockP.TotalSlides = len(slides)
+			} else {
+				log.Printf("[Library] Failed to parse mock presentation: %v", err)
+			}
+			return []storage.Presentation{mockP}, nil
 		}
-		slides, err := pptx.ParsePPTX(mockP.FilePath)
-		if err == nil {
-			mockP.Slides = slides
-			mockP.TotalSlides = len(slides)
-		} else {
-			log.Printf("[Library] Failed to parse mock presentation: %v", err)
-		}
-		return []storage.Presentation{mockP}, nil
+		return []storage.Presentation{}, nil
 	}
 	return list, nil
 }
@@ -179,19 +185,49 @@ func (a *App) UploadPresentation(filePath string) (storage.Presentation, error) 
 		return storage.Presentation{}, errors.New("database locked")
 	}
 
-	slides, err := pptx.ParsePPTX(filePath)
+	configDir, err := os.UserConfigDir()
 	if err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to get user config dir: %w", err)
+	}
+	appDir := filepath.Join(configDir, "ppt-dapp", "presentations")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to create presentations folder: %w", err)
+	}
+
+	id := uuid.New().String()
+	localFilePath := filepath.Join(appDir, id+".pptx")
+
+	// Copy content
+	srcFile, err := os.Open(filePath)
+	if err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(localFilePath)
+	if err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		os.Remove(localFilePath)
+		return storage.Presentation{}, fmt.Errorf("failed to copy file: %w", err)
+	}
+
+	slides, err := pptx.ParsePPTX(localFilePath)
+	if err != nil {
+		os.Remove(localFilePath)
 		return storage.Presentation{}, fmt.Errorf("parsing failed: %w", err)
 	}
 
 	fileName := filepath.Base(filePath)
-	id := uuid.New().String()
 
 	p := storage.Presentation{
 		ID:        id,
 		Name:      fileName,
 		Source:    "pptx",
-		FilePath:  filePath,
+		FilePath:  localFilePath,
 		IsStarred: false,
 		Folder:    "",
 		TotalSlides: len(slides),
@@ -200,7 +236,22 @@ func (a *App) UploadPresentation(filePath string) (storage.Presentation, error) 
 	}
 
 	err = a.storage.AddPresentation(p)
-	return p, err
+	if err != nil {
+		os.Remove(localFilePath)
+		return storage.Presentation{}, err
+	}
+
+	// Trigger slide images export in background
+	imagesDir := filepath.Join(appDir, id+"_images")
+	go func() {
+		if err := a.exportPPTXToImages(localFilePath, imagesDir); err != nil {
+			log.Printf("[App] Background slide image export failed for %s: %v", id, err)
+		} else {
+			log.Printf("[App] Background slide image export succeeded for %s", id)
+		}
+	}()
+
+	return p, nil
 }
 
 // SelectAndUploadPresentation opens a native file dialog to select a PowerPoint file and uploads it
@@ -255,7 +306,27 @@ func (a *App) AddGoogleSlidesLink(name string, url string) (storage.Presentation
 
 // GetPresentationBytes reads the raw file bytes for a PPTX presentation from disk
 func (a *App) GetPresentationBytes(id string) ([]byte, error) {
-	return os.ReadFile(`C:\Users\sukha\Downloads\[EXT] Solution Challenge 2026 - Prototype PPT Template (1).pptx`)
+	if !a.storage.IsUnlocked() {
+		return nil, errors.New("database locked")
+	}
+	presentations := a.storage.GetPresentations()
+	for _, p := range presentations {
+		if p.ID == id {
+			if p.Source == "google" {
+				return nil, errors.New("google slides do not have file bytes")
+			}
+			if p.FilePath == "" {
+				return nil, errors.New("file path is empty")
+			}
+			return os.ReadFile(p.FilePath)
+		}
+	}
+	// Fallback to mock presentation if it matches mock id
+	if id == "test-pptx-id" {
+		mockPath := `C:\Users\sukha\Downloads\[EXT] Solution Challenge 2026 - Prototype PPT Template (1).pptx`
+		return os.ReadFile(mockPath)
+	}
+	return nil, errors.New("presentation not found")
 }
 
 
@@ -332,7 +403,6 @@ func (a *App) EndPresentationSession() {
 
 	a.udpServer.Stop()
 	a.webrtcManager.Stop()
-	a.bleServer.Stop()
 }
 
 // AcceptPairingRequest accepts the connection request from the mobile device
@@ -424,9 +494,11 @@ func (a *App) UpdateCurrentSlide(index int) {
 // -------------------------------------------------------------
 
 func (a *App) handleRawMessage(data []byte) {
+	log.Printf("[App] Raw message received: %s", string(data))
 	// Parse as base wrapper first
 	var base map[string]interface{}
 	if err := json.Unmarshal(data, &base); err != nil {
+		log.Printf("[App] Failed to unmarshal message: %v", err)
 		return
 	}
 
@@ -579,6 +651,8 @@ func (a *App) handleDecryptedPayload(payload []byte) {
 		})
 	case "laser-off":
 		wailsRuntime.EventsEmit(a.ctx, "laser-hide", nil)
+	case "fullscreen":
+		wailsRuntime.EventsEmit(a.ctx, "toggle-fullscreen", nil)
 	case "request-slides":
 		a.sendSlidesUpdate()
 	}
@@ -700,4 +774,72 @@ func generateRandomPasscode() string {
 func (a *App) WriteDebugFile(filename string, content string) error {
 	dir := `C:\Users\sukha\.gemini\antigravity-ide\brain\60d42e6c-8c9a-4947-83ab-2ed109217652\scratch`
 	return os.WriteFile(filepath.Join(dir, filename), []byte(content), 0644)
+}
+
+func findPythonScript() (string, error) {
+	// Try current directory
+	if _, err := os.Stat("pptx_to_images.py"); err == nil {
+		return filepath.Abs("pptx_to_images.py")
+	}
+	// Try executable directory
+	exePath, err := os.Executable()
+	if err == nil {
+		exeDir := filepath.Dir(exePath)
+		scriptPath := filepath.Join(exeDir, "pptx_to_images.py")
+		if _, err := os.Stat(scriptPath); err == nil {
+			return filepath.Abs(scriptPath)
+		}
+	}
+	return "", errors.New("pptx_to_images.py not found")
+}
+
+func (a *App) exportPPTXToImages(pptxPath string, outputDir string) error {
+	scriptPath, err := findPythonScript()
+	if err != nil {
+		return err
+	}
+
+	// Try running "python" first
+	cmd := exec.Command("python", scriptPath, pptxPath, outputDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Fallback to "python3"
+		cmd3 := exec.Command("python3", scriptPath, pptxPath, outputDir)
+		output3, err3 := cmd3.CombinedOutput()
+		if err3 != nil {
+			return fmt.Errorf("python run failed: %v (%s) and python3 run failed: %v (%s)", err, string(output), err3, string(output3))
+		}
+		log.Printf("[App] Python script output: %s", string(output3))
+	} else {
+		log.Printf("[App] Python script output: %s", string(output))
+	}
+	return nil
+}
+
+// GetSlideImage returns the base64-encoded PNG image of a specific slide
+func (a *App) GetSlideImage(prezID string, slideIndex int) (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	// Slide file name matches "Slide<slideIndex>.PNG"
+	imagePath := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.PNG", slideIndex))
+
+	// Check if file exists
+	if _, err := os.Stat(imagePath); err != nil {
+		// Try lowercase file extension just in case
+		imagePathLower := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.png", slideIndex))
+		if _, err := os.Stat(imagePathLower); err != nil {
+			return "", errors.New("slide image not ready or not found")
+		}
+		imagePath = imagePathLower
+	}
+
+	bytes, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(bytes), nil
 }

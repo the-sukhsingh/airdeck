@@ -46,15 +46,16 @@ func ParsePPTX(filePath string) ([]storage.SlideData, error) {
 	// Map of notes file -> extracted text
 	notesContent := make(map[string]string)
 
-	// Regexp to detect slides and slide rels
-	slideRegex := regexp.MustCompile(`^ppt/slides/slide\d+\.xml$`)
-	slideRelRegex := regexp.MustCompile(`^ppt/slides/_rels/slide\d+\.xml\.rels$`)
-	notesRegex := regexp.MustCompile(`^ppt/notesSlides/notesSlide\d+\.xml$`)
+	// Regexp to detect slides and slide rels (case-insensitive)
+	slideRegex := regexp.MustCompile(`(?i)^ppt/slides/slide\d+\.xml$`)
+	slideRelRegex := regexp.MustCompile(`(?i)^ppt/slides/_rels/slide\d+\.xml\.rels$`)
+	notesRegex := regexp.MustCompile(`(?i)^ppt/notesSlides/notesSlide\d+\.xml$`)
 
 	for _, f := range reader.File {
-		if slideRegex.MatchString(f.Name) {
-			slideFiles = append(slideFiles, f.Name)
-			slidesMap[f.Name] = &storage.SlideData{
+		name := strings.ReplaceAll(f.Name, "\\", "/")
+		if slideRegex.MatchString(name) {
+			slideFiles = append(slideFiles, name)
+			slidesMap[name] = &storage.SlideData{
 				Title: "",
 				Notes: "",
 				Texts: []string{},
@@ -71,41 +72,40 @@ func ParsePPTX(filePath string) ([]storage.SlideData, error) {
 
 	// Process relationships and content
 	for _, f := range reader.File {
-		if slideRelRegex.MatchString(f.Name) {
-			// e.g. "ppt/slides/_rels/slide1.xml.rels" -> slide is "ppt/slides/slide1.xml"
-			base := path.Base(f.Name)
-			slideName := "ppt/slides/" + strings.TrimSuffix(base, ".rels")
+		name := strings.ReplaceAll(f.Name, "\\", "/")
+		if slideRelRegex.MatchString(name) {
+			dir := path.Dir(path.Dir(name)) // usually "ppt/slides"
+			base := path.Base(name)
+			slideName := dir + "/" + strings.TrimSuffix(base, ".rels")
 			
 			rc, err := f.Open()
 			if err == nil {
 				notesTarget, err := parseSlideRels(rc)
 				rc.Close()
 				if err == nil && notesTarget != "" {
-					// Target is usually like "../notesSlides/notesSlide1.xml"
-					// We resolve it relative to "ppt/slides" -> "ppt/notesSlides/notesSlide1.xml"
-					resolvedTarget := cleanPath("ppt/slides/" + notesTarget)
+					resolvedTarget := cleanPath(dir + "/" + notesTarget)
 					slideNotesRel[slideName] = resolvedTarget
 				}
 			}
-		} else if notesRegex.MatchString(f.Name) {
+		} else if notesRegex.MatchString(name) {
 			rc, err := f.Open()
 			if err == nil {
 				text, err := extractXmlText(rc)
 				rc.Close()
 				if err == nil {
-					notesContent[f.Name] = text
+					notesContent[name] = text
 				}
 			}
-		} else if slideRegex.MatchString(f.Name) {
+		} else if slideRegex.MatchString(name) {
 			rc, err := f.Open()
 			if err == nil {
 				texts, err := extractXmlTextSlice(rc)
 				rc.Close()
-				if err == nil && slidesMap[f.Name] != nil {
-					slidesMap[f.Name].Texts = texts
+				if err == nil && slidesMap[name] != nil {
+					slidesMap[name].Texts = texts
 					if len(texts) > 0 {
 						// Guess title is the first text block (often true)
-						slidesMap[f.Name].Title = texts[0]
+						slidesMap[name].Title = texts[0]
 					}
 				}
 			}

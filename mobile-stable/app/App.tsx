@@ -1,6 +1,33 @@
 import React, { useState, useEffect } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, PermissionsAndroid, Platform } from "react-native";
 import { connectionService, SlideInfo } from "../src/services/connection";
+import { Device } from "react-native-ble-plx";
+
+async function requestBluetoothPermissions(): Promise<boolean> {
+  if (Platform.OS === "ios") {
+    return true;
+  }
+  if (Platform.OS === "android") {
+    const apiLevel = parseInt(Platform.Version.toString(), 10);
+    if (apiLevel < 31) {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } else {
+      const result = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      ]);
+      return (
+        result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === PermissionsAndroid.RESULTS.GRANTED &&
+        result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED
+      );
+    }
+  }
+  return false;
+}
 
 import ConnectScreen from "./screens/ConnectScreen";
 import AuthenticatingScreen from "./screens/AuthenticatingScreen";
@@ -15,6 +42,11 @@ export default function App() {
   const [passcode, setPasscode] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [fingerprint, setFingerprint] = useState<string>("");
+
+  // BLE-specific States
+  const [connectionMode, setConnectionMode] = useState<"wifi" | "ble">("wifi");
+  const [scannedDevices, setScannedDevices] = useState<Device[]>([]);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
 
   // Theme State
   const systemScheme = useColorScheme();
@@ -85,6 +117,54 @@ export default function App() {
     await connectionService.connect(targetIP, deviceName);
   };
 
+  const handleStartScan = async () => {
+    setErrorMsg("");
+    const hasPermission = await requestBluetoothPermissions();
+    if (!hasPermission) {
+      setErrorMsg("Bluetooth permissions denied.");
+      return;
+    }
+
+    setScannedDevices([]);
+    setIsScanning(true);
+
+    let stopScanFn: (() => void) | null = null;
+    try {
+      stopScanFn = connectionService.scanForPresenters(
+        (device) => {
+          setScannedDevices((prev) => {
+            if (prev.some((d) => d.id === device.id)) {
+              return prev;
+            }
+            return [...prev, device];
+          });
+        },
+        (err) => {
+          setErrorMsg(err);
+          setIsScanning(false);
+        }
+      );
+    } catch (e: any) {
+      setErrorMsg(e.message || "Failed to start BLE scan.");
+      setIsScanning(false);
+      return;
+    }
+
+    // Auto-stop scanning after 8 seconds
+    setTimeout(() => {
+      if (stopScanFn) {
+        stopScanFn();
+      }
+      setIsScanning(false);
+    }, 8000);
+  };
+
+  const handleConnectBLE = async (device: Device) => {
+    setErrorMsg("");
+    setIsScanning(false);
+    await connectionService.connectBLE(device, deviceName);
+  };
+
   // QR Code Scanned Handler
   const handleQRScan = async (data: string) => {
     setErrorMsg("");
@@ -129,6 +209,12 @@ export default function App() {
         toggleTheme={toggleTheme}
         onConnect={handleConnect}
         onScanQR={handleQRScan}
+        connectionMode={connectionMode}
+        setConnectionMode={setConnectionMode}
+        scannedDevices={scannedDevices}
+        isScanning={isScanning}
+        onStartScan={handleStartScan}
+        onConnectBLE={handleConnectBLE}
       />
     );
   }

@@ -44,6 +44,7 @@ export default function ControllerScreen({
   const handlePrev = () => sendEncryptedCommand({ action: "prev" });
   const handleGotoSlide = (index: number) =>
     sendEncryptedCommand({ action: "goto", index });
+  const handleToggleFullscreen = () => sendEncryptedCommand({ action: "fullscreen" });
 
   const isLight = theme === "light";
   const bgMain = isLight ? "#fafafa" : "#0f0f11";
@@ -80,6 +81,14 @@ export default function ControllerScreen({
         </View>
 
         <View className="flex-row items-center gap-3">
+          {/* Fullscreen Toggle */}
+          <TouchableOpacity onPress={handleToggleFullscreen} className="p-1">
+            <Ionicons
+              name="expand-outline"
+              size={18}
+              color={isLight ? "#18181b" : "#f4f4f5"}
+            />
+          </TouchableOpacity>
           {/* Theme Toggle */}
           <TouchableOpacity onPress={toggleTheme} className="p-1">
             <Ionicons

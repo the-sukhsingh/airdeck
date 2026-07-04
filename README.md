@@ -12,7 +12,7 @@ A real-time, low-latency, end-to-end encrypted (E2EE) presentation companion sys
 Following a premium **Swiss/Flat Minimalist Design System**:
 - **Monochrome & Neutral**: A dark UI consisting of shades of black, muted charcoal, and stark whites. No gradients or bright colored accents.
 - **Strictly Flat**: No drop shadows, inner shadows, or blurring effects. All elements rest flat against their background.
-- **Geometric & Sharp**: Borders have sharp (`0px`) or very subtly softened (`2px`) corners. 
+- **Geometric & Sharp**: Borders have sharp (`0px`) or very subtly softened (`2px` / `16px` for cards) corners.
 - **Spacious & Clear**: Generous padding and margins allow for negative space, emphasizing typographic scale and layout clarity.
 
 ---
@@ -33,14 +33,12 @@ Following a premium **Swiss/Flat Minimalist Design System**:
 
 1. **Local WiFi/Network**:
    - The desktop app runs a local UDP server listening on port `9999`. The mobile app can broadcast discovery requests to automatically find the desktop IP.
-   - For pairing, the desktop launches a temporary WebSocket signaling server.
-   - The devices establish a **WebRTC PeerConnection** Data Channel for remote controls.
-   - *Expo Go Fallback*: In standard development runtimes (like Expo Go) where custom native binary modules (like WebRTC) are not prebuilt, the mobile app automatically falls back to sending E2EE encrypted packets directly over the secure local WebSocket connection, ensuring out-of-the-box development and testing support.
+   - For pairing, the desktop launches a temporary WebSocket signaling server and generates a QR code containing local connection endpoints and a unique connection passcode.
+   - The mobile app scans this QR code to automatically establish a secure **WebRTC PeerConnection** Data Channel.
+   - *Expo Go Fallback*: In standard development runtimes where custom native binary modules (like WebRTC) are not prebuilt, the mobile app automatically falls back to sending E2EE encrypted packets directly over the secure local WebSocket connection, ensuring out-of-the-box development and testing support.
 2. **Bluetooth LE (BLE)**:
    - The desktop app configures a GATT peripheral service exposing write and notify characteristics.
-   - The mobile app acts as a BLE central device to exchange commands and status updates when offline.
-3. **Internet Pairing**:
-   - For situations with no local network, the app supports manual SDP copy-paste or QR code scanning. The desktop generates an ICE-complete local SDP offer, which the mobile scans, answers, and returns.
+   - The mobile app acts as a BLE central device to scan, discover, and pair with the desktop app offline without requiring local network access.
 
 ---
 
@@ -48,11 +46,12 @@ Following a premium **Swiss/Flat Minimalist Design System**:
 
 ```
 ppt-dapp/
-├── README.md                   # Project documentation
-├── desktop/                    # Native Desktop Wails Project
+├── README.md                   # Ecosystem documentation
+├── RUN.md                      # Quick run sheet
+├── desktop/                    # Native Desktop Wails Project (AirDeck Presenter)
 │   ├── app.go                  # Go main controller & IPC binding functions
 │   ├── main.go                 # App entry point
-│   ├── go.mod                  # Go modules declaration
+│   ├── wails.json              # Wails project configuration
 │   ├── internal/
 │   │   ├── ble/                # BLE GATT peripheral driver
 │   │   ├── crypto/             # AES-256-GCM and P-256 ECDH modules
@@ -63,15 +62,17 @@ ppt-dapp/
 │   └── frontend/               # React + TS Frontend
 │       ├── src/
 │       │   ├── App.tsx         # Main dashboard, lockscreen, presentation view
-│       │   ├── style.css       # Flat minimalist CSS variables & styles
-│       │   └── main.tsx        # React mounting entry point
+│       │   └── style.css       # Flat minimalist CSS variables & styles
 │       └── package.json
-└── mobile/                     # React Native Expo Mobile Project
-    ├── App.tsx                 # Mobile pairing, control touchpad, slide listing
+└── mobile-stable/              # React Native Expo Mobile Project (AirDeck Controller)
+    ├── app/                    # Expo Router application code
+    │   ├── App.tsx             # Main entry navigation & state wrapper
+    │   ├── screens/            # Application screens (Connect, Controller, etc.)
+    │   └── components/         # Shared components (QRScannerModal, Tabs, etc.)
     ├── package.json
     └── src/
         └── services/
-            └── crypto.ts       # Web Crypto API P-256 ECDH & AES-GCM helpers
+            └── connection.ts   # Secure client connection helper (WebRTC, BLE, WS)
 ```
 
 ---
@@ -90,12 +91,16 @@ wails build
 ```
 
 ### 2. Run the Mobile App
-Ensure you have Expo CLI installed:
+Ensure you have Expo CLI installed and dependencies configured:
 ```bash
-cd mobile
-npm run start
+cd mobile-stable
+npm install
+npm run android   # to run on Android device/simulator
+# or
+npm run ios       # to run on iOS device/simulator
 ```
-Open the Expo Go app on your physical iOS/Android phone and scan the QR code displayed in your terminal.
-- Enter the presenter's IP/Port shown on the desktop window (e.g. `192.168.1.50:12345`).
-- Enter the 6-digit passcode.
-- Click accept on the laptop prompt, and start presenting!
+- Open the application on your physical device.
+- Ensure your device is on the same local network as the presenter laptop.
+- In **Wi-Fi Mode**, tap **Scan Pairing QR Code** and scan the QR code displayed on the AirDeck desktop presenter app. It will securely establish connection and pair automatically.
+- Alternatively, switch to **Bluetooth Mode**, tap **SCAN**, and select your presenter laptop from the scanned devices list.
+- Confirm the 8-character verification fingerprint shown on the desktop matches, and start presenting!

@@ -5,11 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import QRScannerModal from "../components/QRScannerModal";
+import { Device } from "react-native-ble-plx";
 
 interface ConnectScreenProps {
   deviceName: string;
@@ -23,21 +25,32 @@ interface ConnectScreenProps {
   toggleTheme: () => void;
   onConnect: () => void;
   onScanQR: (data: string) => void;
+  
+  // BLE-specific props
+  connectionMode: "wifi" | "ble";
+  setConnectionMode: (mode: "wifi" | "ble") => void;
+  scannedDevices: Device[];
+  isScanning: boolean;
+  onStartScan: () => void;
+  onConnectBLE: (device: Device) => void;
 }
 
-export default function ConnectScreen({
-  deviceName,
-  setDeviceName,
-  targetIP,
-  setTargetIP,
-  passcode,
-  setPasscode,
-  errorMsg,
-  theme,
-  toggleTheme,
-  onConnect,
-  onScanQR,
-}: ConnectScreenProps) {
+export default function ConnectScreen(props: ConnectScreenProps) {
+  const {
+    deviceName,
+    setDeviceName,
+    errorMsg,
+    theme,
+    toggleTheme,
+    onScanQR,
+    connectionMode,
+    setConnectionMode,
+    scannedDevices,
+    isScanning,
+    onStartScan,
+    onConnectBLE,
+  } = props;
+
   const [scannerVisible, setScannerVisible] = useState<boolean>(false);
 
   const handleQRScan = (data: string) => {
@@ -51,7 +64,6 @@ export default function ConnectScreen({
   const borderCol = isLight ? "#e4e4e7" : "#27272a";
   const textPrimary = isLight ? "#0f0f11" : "#f4f4f5";
   const textSecondary = isLight ? "#71717a" : "#a1a1aa";
-  const bgInput = isLight ? "#fafafa" : "#0f0f11";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: bgMain }}>
@@ -82,7 +94,7 @@ export default function ConnectScreen({
             alignItems: "center",
             justifyContent: "center",
           }}
-          title={isLight ? "Switch to Dark Mode" : "Switch to Light Mode"}
+          accessibilityLabel={isLight ? "Switch to Dark Mode" : "Switch to Light Mode"}
         >
           <Ionicons
             name={isLight ? "moon-outline" : "sunny-outline"}
@@ -93,125 +105,245 @@ export default function ConnectScreen({
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}>
-        <View
-          style={{ backgroundColor: bgCard, borderColor: borderCol }}
-          className="border rounded-lg p-6 w-full"
-        >
-          <Text
-            style={{ color: textPrimary }}
-            className="text-lg font-semibold mb-5 tracking-tight"
-          >
+        <View className="mb-8 mt-2 items-center">
+          <Text style={{ color: textPrimary }} className="text-xl font-bold tracking-tight text-center">
             Pair with Presenter
           </Text>
+          <Text style={{ color: textSecondary }} className="text-xs text-center mt-1 px-4 leading-5">
+            Connect your phone to slide presentations over Wi-Fi or Bluetooth.
+          </Text>
+        </View>
 
-          {errorMsg ? (
-            <Text className="text-[#ef4444] text-[11px] font-bold mb-4">
-              {errorMsg.toUpperCase()}
-            </Text>
-          ) : null}
-
+        {/* Connection Mode Toggle */}
+        <View 
+          style={{ backgroundColor: isLight ? "#f1f1f4" : "#1c1c1f" }} 
+          className="flex-row rounded-full p-1 mb-6"
+        >
           <TouchableOpacity
-            style={{ borderColor: borderCol, backgroundColor: bgInput }}
-            className="border py-3.5 items-center justify-center rounded-md mb-5 flex-row gap-2"
-            onPress={() => setScannerVisible(true)}
+            style={{ 
+              flex: 1, 
+              backgroundColor: connectionMode === "wifi" ? (isLight ? "#ffffff" : "#2d2d30") : "transparent",
+              paddingVertical: 10,
+              borderRadius: 9999,
+              alignItems: "center"
+            }}
+            onPress={() => setConnectionMode("wifi")}
           >
-            <Ionicons
-              name="qr-code-outline"
-              size={16}
-              color={isLight ? "#18181b" : "#f4f4f5"}
-            />
-            <Text
-              style={{ color: textPrimary }}
-              className="text-xs font-semibold tracking-wider"
-            >
-              SCAN PAIRING QR CODE
-            </Text>
-          </TouchableOpacity>
-
-          <View className="mb-4">
-            <Text
-              style={{ color: textSecondary }}
-              className="text-[10px] font-bold uppercase mb-1.5 tracking-wider"
-            >
-              Device Friendly Name
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: bgInput,
-                borderColor: borderCol,
-                color: textPrimary,
-              }}
-              className="border rounded-md py-3 px-4 text-sm"
-              value={deviceName}
-              onChangeText={setDeviceName}
-              placeholder="e.g. Phone Remote"
-              placeholderTextColor={isLight ? "#a1a1aa" : "#52525b"}
-            />
-          </View>
-
-          <View className="mb-4">
-            <Text
-              style={{ color: textSecondary }}
-              className="text-[10px] font-bold uppercase mb-1.5 tracking-wider"
-            >
-              Presenter Network IP & Port
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: bgInput,
-                borderColor: borderCol,
-                color: textPrimary,
-              }}
-              className="border rounded-md py-3 px-4 text-sm font-mono"
-              value={targetIP}
-              onChangeText={setTargetIP}
-              placeholder="192.168.1.50:12345"
-              placeholderTextColor={isLight ? "#a1a1aa" : "#52525b"}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="numbers-and-punctuation"
-            />
-            <Text style={{ color: textSecondary }} className="text-[10px] mt-1.5">
-              Type the local WiFi IPs shown on the laptop presenter screen.
-            </Text>
-          </View>
-
-          <View className="mb-4">
-            <Text
-              style={{ color: textPrimary }}
-              className="text-[10px] font-bold uppercase mb-1.5 tracking-wider"
-            >
-              6-Digit Passcode
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: bgInput,
-                borderColor: borderCol,
-                color: textPrimary,
-              }}
-              className="border rounded-md py-3 px-4 text-sm font-mono"
-              value={passcode}
-              onChangeText={setPasscode}
-              placeholder="123456"
-              placeholderTextColor={isLight ? "#a1a1aa" : "#52525b"}
-              maxLength={6}
-              keyboardType="number-pad"
-            />
-          </View>
-
-          <TouchableOpacity
-            style={{ backgroundColor: isLight ? "#18181b" : "#f4f4f5" }}
-            className="py-3.5 items-center justify-center rounded-md mt-2"
-            onPress={onConnect}
-          >
-            <Text
-              style={{ color: isLight ? "#ffffff" : "#0f0f11" }}
+            <Text 
+              style={{ 
+                color: connectionMode === "wifi" ? textPrimary : textSecondary 
+              }} 
               className="text-xs font-bold tracking-wider"
             >
-              CONNECT REMOTE
+              WI-FI
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ 
+              flex: 1, 
+              backgroundColor: connectionMode === "ble" ? (isLight ? "#ffffff" : "#2d2d30") : "transparent",
+              paddingVertical: 10,
+              borderRadius: 9999,
+              alignItems: "center"
+            }}
+            onPress={() => setConnectionMode("ble")}
+          >
+            <Text 
+              style={{ 
+                color: connectionMode === "ble" ? textPrimary : textSecondary 
+              }} 
+              className="text-xs font-bold tracking-wider"
+            >
+              BLUETOOTH
             </Text>
           </TouchableOpacity>
         </View>
+
+        {errorMsg ? (
+          <View 
+            style={{ backgroundColor: isLight ? "#fef2f2" : "#450a0a", borderColor: isLight ? "#fecaca" : "#7f1d1d" }}
+            className="border p-3.5 rounded-xl mb-6 flex-row items-center gap-2.5"
+          >
+            <Ionicons
+              name="alert-circle-outline"
+              size={16}
+              color="#ef4444"
+            />
+            <Text className="text-[#ef4444] text-xs font-semibold flex-1 leading-4">
+              {errorMsg}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Common Device Name Input */}
+        <View className="mb-6">
+          <Text
+            style={{ color: textSecondary }}
+            className="text-[10px] font-bold uppercase mb-2 tracking-wider"
+          >
+            Device Friendly Name
+          </Text>
+          <TextInput
+            style={{
+              backgroundColor: bgCard,
+              borderColor: borderCol,
+              color: textPrimary,
+            }}
+            className="border rounded-xl py-3.5 px-4 text-sm font-medium"
+            value={deviceName}
+            onChangeText={setDeviceName}
+            placeholder="e.g. Phone Remote"
+            placeholderTextColor={isLight ? "#a1a1aa" : "#52525b"}
+          />
+        </View>
+
+        {connectionMode === "wifi" ? (
+          <View className="mt-2">
+            {/* Sleek Scan Card */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setScannerVisible(true)}
+              style={{ 
+                backgroundColor: bgCard, 
+                borderColor: borderCol,
+                borderStyle: "dashed",
+                borderWidth: 1.5,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: isLight ? 0.02 : 0.1,
+                shadowRadius: 8,
+                elevation: 2,
+              }}
+              className="rounded-2xl p-8 items-center justify-center min-h-[220px]"
+            >
+              <View 
+                style={{ backgroundColor: isLight ? "#f4f4f5" : "#222226" }}
+                className="w-16 h-16 rounded-2xl items-center justify-center mb-5"
+              >
+                <Ionicons
+                  name="qr-code-outline"
+                  size={32}
+                  color={isLight ? "#0f0f11" : "#f4f4f5"}
+                />
+              </View>
+              <Text
+                style={{ color: textPrimary }}
+                className="text-base font-bold tracking-tight mb-2 text-center"
+              >
+                Scan Pairing QR Code
+              </Text>
+              <Text
+                style={{ color: textSecondary }}
+                className="text-xs text-center leading-5 px-4 max-w-[280px]"
+              >
+                Tap to open the camera and scan the QR code shown on the desktop presenter app.
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="mt-2">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text
+                style={{ color: textSecondary }}
+                className="text-[10px] font-bold uppercase tracking-wider"
+              >
+                Available Bluetooth Presenters
+              </Text>
+              <TouchableOpacity
+                onPress={onStartScan}
+                disabled={isScanning}
+                className="flex-row items-center gap-1.5 py-1 px-3 rounded-full"
+                style={{ backgroundColor: isLight ? "#e4e4e7" : "#27272a" }}
+              >
+                {isScanning ? (
+                  <ActivityIndicator size="small" color={isLight ? "#18181b" : "#f4f4f5"} />
+                ) : (
+                  <Ionicons
+                    name="refresh-outline"
+                    size={12}
+                    color={isLight ? "#18181b" : "#f4f4f5"}
+                  />
+                )}
+                <Text
+                  style={{ color: textPrimary }}
+                  className="text-[10px] font-bold tracking-wider"
+                >
+                  {isScanning ? "SCANNING..." : "SCAN"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={{ borderColor: borderCol, backgroundColor: bgCard }}
+              className="border rounded-2xl min-h-[180px] mb-4 overflow-hidden"
+            >
+              {scannedDevices.length === 0 ? (
+                <View className="flex-1 items-center justify-center p-8 min-h-[180px]">
+                  <View 
+                    style={{ backgroundColor: isLight ? "#f4f4f5" : "#222226" }}
+                    className="w-12 h-12 rounded-full items-center justify-center mb-3"
+                  >
+                    <Ionicons
+                      name={isScanning ? "sync-outline" : "bluetooth-outline"}
+                      size={20}
+                      color={textSecondary}
+                    />
+                  </View>
+                  <Text
+                    style={{ color: textSecondary }}
+                    className="text-xs font-semibold text-center leading-5 max-w-[200px]"
+                  >
+                    {isScanning ? "Searching for AirDeck presenters..." : "No presenters found. Tap SCAN to search."}
+                  </Text>
+                </View>
+              ) : (
+                scannedDevices.map((dev, idx) => (
+                  <TouchableOpacity
+                    key={dev.id}
+                    style={{ 
+                      borderBottomColor: borderCol,
+                      borderBottomWidth: idx === scannedDevices.length - 1 ? 0 : 1 
+                    }}
+                    className="p-5 flex-row justify-between items-center active:opacity-60"
+                    onPress={() => onConnectBLE(dev)}
+                  >
+                    <View className="flex-row items-center gap-3">
+                      <View 
+                        style={{ backgroundColor: isLight ? "#f4f4f5" : "#222226" }}
+                        className="w-10 h-10 rounded-xl items-center justify-center"
+                      >
+                        <Ionicons
+                          name="laptop-outline"
+                          size={18}
+                          color={textPrimary}
+                        />
+                      </View>
+                      <View>
+                        <Text
+                          style={{ color: textPrimary }}
+                          className="text-sm font-semibold tracking-tight"
+                        >
+                          {dev.name || dev.localName || "Unknown Laptop"}
+                        </Text>
+                        <Text
+                          style={{ color: textSecondary }}
+                          className="text-[10px] font-mono mt-0.5"
+                        >
+                          {dev.id}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward-outline"
+                      size={16}
+                      color={textSecondary}
+                    />
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       <QRScannerModal

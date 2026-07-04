@@ -230,6 +230,14 @@ func (s *StorageManager) RemovePresentation(id string) error {
 		return errors.New("presentation not found")
 	}
 
+	// Delete file and images folder if they exist
+	p := s.db.Presentations[index]
+	if p.Source == "pptx" && p.FilePath != "" {
+		os.Remove(p.FilePath)
+		imagesDir := filepath.Join(filepath.Dir(p.FilePath), p.ID+"_images")
+		os.RemoveAll(imagesDir)
+	}
+
 	s.db.Presentations = append(s.db.Presentations[:index], s.db.Presentations[index+1:]...)
 	s.mutex.Unlock()
 	return s.Save()

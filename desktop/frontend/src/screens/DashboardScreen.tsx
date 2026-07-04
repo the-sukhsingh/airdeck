@@ -72,9 +72,16 @@ export default function DashboardScreen({
 
     try {
       let cleanedUrl = gSlidesUrl;
-      const match = gSlidesUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match && match[1]) {
-        cleanedUrl = `https://docs.google.com/presentation/d/${match[1]}/embed?start=false&loop=false&delayms=3000`;
+      // Try matching published link /d/e/ID first
+      const pubMatch = gSlidesUrl.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
+      if (pubMatch && pubMatch[1]) {
+        cleanedUrl = `https://docs.google.com/presentation/d/e/${pubMatch[1]}/embed?start=false&loop=false&delayms=3000`;
+      } else {
+        // Try matching standard link /d/ID
+        const stdMatch = gSlidesUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (stdMatch && stdMatch[1]) {
+          cleanedUrl = `https://docs.google.com/presentation/d/${stdMatch[1]}/embed?start=false&loop=false&delayms=3000`;
+        }
       }
 
       await AddGoogleSlidesLink(gSlidesName, cleanedUrl);

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
+
+	"tinygo.org/x/bluetooth"
 )
 
 // BLEServer manages Bluetooth LE advertising and GATT characteristics
@@ -15,6 +18,9 @@ type BLEServer struct {
 	onWriteCmd    func(data []byte)
 	onNotifyReady func(sendNotify func(data []byte) error)
 	stopChan      chan struct{}
+	writeChar     bluetooth.Characteristic
+	notifyChar    bluetooth.Characteristic
+	adv           *bluetooth.Advertisement
 }
 
 // NewBLEServer creates a new instance of BLEServer
@@ -80,8 +86,6 @@ func (s *BLEServer) Stop() {
 // To keep compiling simple and ensure the project builds out of the box,
 // we define a soft-fail handler.
 func (s *BLEServer) startNativeBLE() error {
-	// If you have tinygo-org/bluetooth installed, you can enable this block:
-	/*
 	adapter := bluetooth.DefaultAdapter
 	err := adapter.Enable()
 	if err != nil {
@@ -95,20 +99,22 @@ func (s *BLEServer) startNativeBLE() error {
 
 	err = adapter.AddService(&bluetooth.Service{
 		UUID: serviceUUID,
-		Characteristics: []bluetooth.Characteristic{
+		Characteristics: []bluetooth.CharacteristicConfig{
 			{
-				UUID: writeUUID,
-				Flags: bluetooth.CharacteristicWritePermission | bluetooth.CharacteristicWriteWithoutResponsePermission,
+				Handle: &s.writeChar,
+				UUID:   writeUUID,
+				Flags:  bluetooth.CharacteristicWritePermission | bluetooth.CharacteristicWriteWithoutResponsePermission,
 				WriteEvent: func(client bluetooth.Connection, offset int, value []byte) {
+					log.Printf("[BLE] Write received (offset=%d, len=%d): %s", offset, len(value), string(value))
 					if s.onWriteCmd != nil {
-						s.onWriteCmd(value)
+						go s.onWriteCmd(value)
 					}
 				},
 			},
 			{
-				UUID: notifyUUID,
-				Flags: bluetooth.CharacteristicNotifyPermission,
-				// Capture the sender function
+				Handle: &s.notifyChar,
+				UUID:   notifyUUID,
+				Flags:  bluetooth.CharacteristicNotifyPermission,
 			},
 		},
 	})
@@ -118,7 +124,7 @@ func (s *BLEServer) startNativeBLE() error {
 
 	adv := adapter.DefaultAdvertisement()
 	err = adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName: s.deviceName,
+		LocalName:    s.deviceName,
 		ServiceUUIDs: []bluetooth.UUID{serviceUUID},
 	})
 	if err != nil {
@@ -129,16 +135,15 @@ func (s *BLEServer) startNativeBLE() error {
 	if err != nil {
 		return err
 	}
-	*/
-
-	// Returning a mock error to indicate BLE is compiled as disabled/stub.
-	// Wails/Go projects typically run on local WiFi/WebRTC by default,
-	// which is faster and supports higher bandwidth for slide previews/laser coordinates.
-	return errors.New("bluetooth hardware driver not initialized (stub compiled)")
+	
+	s.adv = adv
+	return nil
 }
 
 func (s *BLEServer) stopNativeBLE() {
-	// Stop advertising logic
+	if s.adv != nil {
+		s.adv.Stop()
+	}
 }
 
 func (s *BLEServer) SendStatusUpdate(data []byte) error {
@@ -149,6 +154,30 @@ func (s *BLEServer) SendStatusUpdate(data []byte) error {
 		return errors.New("BLE server not running")
 	}
 
-	// Send BLE notification payload
-	return fmt.Errorf("BLE hardware interface unavailable")
+	payloadStr := string(data)
+	chunkSize := 150
+	totalLength := len(payloadStr)
+	msgID := time.Now().UnixNano() / int64(time.Millisecond)
+	totalChunks := (totalLength + chunkSize - 1) / chunkSize
+
+	for i := 0; i < totalChunks; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > totalLength {
+			end = totalLength
+		}
+		chunkPayload := payloadStr[start:end]
+
+		// Format: C:[msgID]:[chunkIdx]:[totalChunks]:[payload]
+		chunkMsg := fmt.Sprintf("C:%d:%d:%d:%s", msgID, i, totalChunks, chunkPayload)
+		
+		_, err := s.notifyChar.Write([]byte(chunkMsg))
+		if err != nil {
+			return err
+		}
+		// Throttle transmission slightly to allow link layer queues to process packets
+		time.Sleep(30 * time.Millisecond)
+	}
+
+	return nil
 }

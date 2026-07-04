@@ -5,8 +5,10 @@ import {
   DenyPairingRequest,
   UpdateCurrentSlide,
   WriteDebugFile,
+  GetSlideImage,
 } from "../../wailsjs/go/main/App";
 import { QRCodeSVG } from "qrcode.react";
+import { WindowFullscreen, WindowUnfullscreen, EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
 import {
   Loader2,
   Maximize2,
@@ -61,6 +63,8 @@ export default function PresentationScreen({
   );
   const [pptxBuffer, setPptxBuffer] = useState<ArrayBuffer | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [slideImage, setSlideImage] = useState<string>("");
+  const [imageLoading, setImageLoading] = useState<boolean>(false);
 
   // Capture slide container dimensions for responsive scaling preserving 16:9 aspect ratio
   useEffect(() => {
@@ -167,8 +171,39 @@ export default function PresentationScreen({
     };
   }, [activePrez.id]);
 
+  // Load slide image if available
+  useEffect(() => {
+    if (activePrez.source !== "pptx") return;
+
+    let active = true;
+    const fetchImage = async () => {
+      setImageLoading(true);
+      try {
+        const base64Data = await GetSlideImage(activePrez.id, currentSlide);
+        if (active) {
+          setSlideImage(`data:image/png;base64,${base64Data}`);
+        }
+      } catch (err) {
+        console.log("Slide image not available, falling back to pptx-preview:", err);
+        if (active) {
+          setSlideImage("");
+        }
+      } finally {
+        if (active) {
+          setImageLoading(false);
+        }
+      }
+    };
+
+    fetchImage();
+    return () => {
+      active = false;
+    };
+  }, [activePrez.id, currentSlide]);
+
   // Initialize and update pptx-preview viewer when buffer or dimensions change
   useEffect(() => {
+    if (slideImage) return; // Skip if we have an image
     if (!pptxBuffer || !dimensions) return;
 
     let viewer: any = null;
@@ -209,6 +244,7 @@ export default function PresentationScreen({
 
   // Sync slide change
   useEffect(() => {
+    if (slideImage) return; // Skip if we have an image
     if (
       previewerRef.current &&
       activePrez.source === "pptx" &&
@@ -237,27 +273,31 @@ export default function PresentationScreen({
   }, [pptxLoading, pptxError, currentSlide]);
 
   const toggleFullscreen = () => {
-    if (!slideAreaRef.current) return;
-
-    if (!document.fullscreenElement) {
-      slideAreaRef.current.requestFullscreen().catch((err) => {
-        console.error("Fullscreen error:", err);
-      });
+    if (isFullscreen) {
+      WindowUnfullscreen();
+      setIsFullscreen(false);
     } else {
-      document.exitFullscreen().catch((err) => {
-        console.error("Exit fullscreen error:", err);
-      });
+      WindowFullscreen();
+      setIsFullscreen(true);
     }
   };
 
+  // Reset native window fullscreen on unmount
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+    return () => {
+      WindowUnfullscreen();
     };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () =>
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  // Listen to remote fullscreen toggle events
+  useEffect(() => {
+    EventsOn("toggle-fullscreen", () => {
+      toggleFullscreen();
+    });
+    return () => {
+      EventsOff("toggle-fullscreen");
+    };
+  }, [isFullscreen]);
 
   const nextSlide = () => {
     const nextIdx = Math.min(activePrez.totalSlides, currentSlide + 1);
@@ -281,8 +321,9 @@ export default function PresentationScreen({
       } else if (e.key === "f" || e.key === "F") {
         toggleFullscreen();
       } else if (e.key === "Escape") {
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
+        if (isFullscreen) {
+          WindowUnfullscreen();
+          setIsFullscreen(false);
         } else {
           onEndPresentation();
         }
@@ -291,7 +332,7 @@ export default function PresentationScreen({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePrez, currentSlide]);
+  }, [activePrez, currentSlide, isFullscreen]);
 
   const currentSlideData = activePrez.slides.find(
     (s) => s.index === currentSlide
@@ -389,14 +430,18 @@ export default function PresentationScreen({
             style={
               isFullscreen
                 ? {
-                    width: "100%",
-                    height: "100%",
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    width: "100vw",
+                    height: "100vh",
                     backgroundColor: "#000",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     overflow: "hidden",
-                    cursor: "zoom-out",
+                    cursor: "none",
+                    zIndex: 9999,
                   }
                 : {
                     flex: 1,
@@ -410,11 +455,12 @@ export default function PresentationScreen({
                     alignItems: "center",
                     justifyContent: "center",
                     overflow: "hidden",
-                    cursor: "zoom-in",
+                    cursor: "none",
                   }
             }
           >
             {/* Floating Fullscreen Toggle Button */}
+            {!isFullscreen && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -436,18 +482,19 @@ export default function PresentationScreen({
                 cursor: "pointer",
                 borderRadius: "var(--radius-subtle)",
               }}
-              title={isFullscreen ? "Exit Fullscreen (F)" : "Enter Fullscreen (F)"}
+              title={"Enter Fullscreen (F)"}
             >
-              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              <Maximize2 size={14} />
             </button>
+            )}
             {activePrez.source === "google" && activePrez.googleSlidesUrl ? (
               <iframe
-                src={activePrez.googleSlidesUrl}
+                src={`${activePrez.googleSlidesUrl.split('#')[0]}#slide=${currentSlide}`}
                 frameBorder="0"
                 width="100%"
                 height="100%"
                 allowFullScreen={true}
-                style={{ pointerEvents: "none" }}
+                style={{ pointerEvents: "auto" }}
                 sandbox="allow-scripts allow-same-origin"
               />
             ) : (
@@ -491,17 +538,29 @@ export default function PresentationScreen({
                     {pptxError}
                   </div>
                 )}
-                <div
-                  ref={pptxContainerRef}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  className="pptx-render-container"
-                />
+                {slideImage ? (
+                  <img
+                    src={slideImage}
+                    alt={`Slide ${currentSlide}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                    }}
+                  />
+                ) : (
+                  <div
+                    ref={pptxContainerRef}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    className="pptx-render-container"
+                  />
+                )}
               </div>
             )}
 
@@ -572,73 +631,25 @@ export default function PresentationScreen({
         {/* Presenter Metadata, Room, and Notes Panel */}
         <div
           style={{
-            width: "360px",
+            width: "400px",
             borderLeft: "1px solid var(--border-color)",
             display: "flex",
             flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "flex-start",
             backgroundColor: "var(--bg-secondary)",
-            padding: "var(--space-xl)",
-            gap: "var(--space-xl)",
+            padding: "var(--space-lg)",
+            gap: "var(--space-lg)",
             overflowY: "auto",
             transition: "background-color 0.2s ease, border-color 0.2s ease",
           }}
+
         >
-          {/* Session Pairing details */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-            <h3 style={{ fontSize: "10px" }}>Pair Mobile App</h3>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
-              <div
-                style={{
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-subtle)",
-                  padding: "var(--space-md)",
-                  backgroundColor: "var(--bg-primary)",
-                  transition: "background-color 0.2s ease, border-color 0.2s ease",
-                }}
-              >
-                <span style={{ fontSize: "9px", color: "var(--text-secondary)", fontWeight: 500 }}>
-                  ROOM ID
-                </span>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "600",
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--text-primary)",
-                    marginTop: "4px",
-                  }}
-                >
-                  {activeSession.roomId}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-subtle)",
-                  padding: "var(--space-md)",
-                  backgroundColor: "var(--bg-primary)",
-                  transition: "background-color 0.2s ease, border-color 0.2s ease",
-                }}
-              >
-                <span style={{ fontSize: "9px", color: "var(--text-secondary)", fontWeight: 500 }}>
-                  PASSCODE
-                </span>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "600",
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--text-primary)",
-                    marginTop: "4px",
-                  }}
-                >
-                  {activeSession.passcode}
-                </div>
-              </div>
-            </div>
-
+          {/* QR Code Container */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-xs)" }}>
+            <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Pair Remote
+            </span>
             <div
               style={{
                 display: "flex",
@@ -648,8 +659,7 @@ export default function PresentationScreen({
                 borderRadius: "var(--radius-medium)",
                 padding: "12px",
                 backgroundColor: "#ffffff",
-                alignSelf: "center",
-                margin: "8px 0",
+                marginTop: "4px",
               }}
             >
               <QRCodeSVG
@@ -659,111 +669,83 @@ export default function PresentationScreen({
                   roomId: activeSession.roomId,
                   passcode: activeSession.passcode,
                 })}
-                size={120}
+                size={160}
                 level="M"
                 fgColor="#000000"
                 bgColor="#ffffff"
               />
             </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-xs)",
-                marginTop: "var(--space-xs)",
-              }}
-            >
-              <span style={{ fontSize: "9px", color: "var(--text-secondary)", fontWeight: 500 }}>
-                WiFi LOCAL IPs
-              </span>
-              {activeSession.localIps.map((ip) => (
-                <code key={ip} style={{ fontSize: "11px", fontFamily: "var(--font-mono)" }}>
-                  {ip}:{activeSession.signalingPort}
-                </code>
-              ))}
-            </div>
           </div>
 
-          {/* Speaker Notes */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-            <h3 style={{ fontSize: "10px" }}>Speaker Notes</h3>
-            <div
-              style={{
-                flex: 1,
-                border: "1px solid var(--border-color)",
-                borderRadius: "var(--radius-subtle)",
-                padding: "var(--space-md)",
-                backgroundColor: "var(--bg-tertiary)",
-                fontSize: "13px",
-                lineHeight: "1.6",
-                color: "var(--text-secondary)",
-                whiteSpace: "pre-wrap",
-                overflowY: "auto",
-                transition: "background-color 0.2s ease, border-color 0.2s ease",
-              }}
-            >
-              {currentSlideData?.notes || "No notes available for this slide."}
-            </div>
+          {/* Connection Request Area / Status */}
+          <div style={{ width: "100%", marginTop: "var(--space-md)" }}>
+            {pendingRequest ? (
+              <div
+                style={{
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "var(--radius-medium)",
+                  padding: "var(--space-md)",
+                  backgroundColor: "var(--bg-primary)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--space-sm)",
+                  boxShadow: "var(--shadow-subtle)",
+                }}
+              >
+                <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-primary)" }}>
+                  Pairing Request
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                  Device: <strong>{pendingRequest.deviceName}</strong>
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    fontFamily: "var(--font-mono)",
+                    backgroundColor: "var(--bg-tertiary)",
+                    padding: "4px 8px",
+                    borderRadius: "var(--radius-subtle)",
+                    textAlign: "center",
+                  }}
+                >
+                  Code: {pendingRequest.fingerprint}
+                </div>
+                <div style={{ display: "flex", gap: "var(--space-sm)", marginTop: "4px" }}>
+                  <button
+                    className="btn btn-primary btn-small"
+                    style={{ flex: 1, padding: "6px" }}
+                    onClick={() => {
+                      AcceptPairingRequest();
+                      setPendingRequest(null);
+                    }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-danger btn-small"
+                    style={{ flex: 1, padding: "6px" }}
+                    onClick={() => {
+                      DenyPairingRequest();
+                      setPendingRequest(null);
+                    }}
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            ) : connState === "connected" ? (
+              <div style={{ textAlign: "center", color: "var(--accent-green)", fontSize: "12px", fontWeight: 500 }}>
+                ✓ Connected to {pairedDevice}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "11px" }}>
+                Scan to control slides
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Pairing Request Dialog Prompt */}
-      {pendingRequest && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: "400px" }}>
-            <h2 style={{ letterSpacing: "-0.01em" }}>Connection Request</h2>
-            <p>
-              A device named <strong>{pendingRequest.deviceName}</strong> is trying to connect.
-            </p>
-            <div
-              style={{
-                border: "1px solid var(--border-color)",
-                padding: "var(--space-md)",
-                backgroundColor: "var(--bg-tertiary)",
-                borderRadius: "var(--radius-subtle)",
-              }}
-            >
-              <span style={{ fontSize: "9px", color: "var(--text-secondary)", fontWeight: 500 }}>
-                SECURITY FINGERPRINT
-              </span>
-              <div
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  fontFamily: "var(--font-mono)",
-                  marginTop: "4px",
-                }}
-              >
-                {pendingRequest.fingerprint}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "var(--space-md)", marginTop: "var(--space-md)" }}>
-              <button
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  AcceptPairingRequest();
-                  setPendingRequest(null);
-                }}
-              >
-                Accept
-              </button>
-              <button
-                className="btn btn-danger"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  DenyPairingRequest();
-                  setPendingRequest(null);
-                }}
-              >
-                Deny
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

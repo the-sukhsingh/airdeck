@@ -1,12 +1,13 @@
 module desktop
 
-go 1.23.0
+go 1.23.8
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/pion/webrtc/v3 v3.3.6
 	github.com/wailsapp/wails/v2 v2.12.0
+	tinygo.org/x/bluetooth v0.15.0
 )
 
 require (
@@ -43,8 +44,15 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/saltosystems/winrt-go v0.0.0-20260317170058-9c2fec580d96 // indirect
 	github.com/samber/lo v1.49.1 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/soypat/cyw43439 v0.1.0 // indirect
+	github.com/soypat/lneto v0.1.0 // indirect
+	github.com/soypat/seqs v0.0.0-20250124201400-0d65bc7c1710 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/tinygo-org/cbgo v0.0.4 // indirect
+	github.com/tinygo-org/pio v0.3.0 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -52,6 +60,7 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/wlynxg/anet v0.0.3 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect

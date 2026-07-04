@@ -34,6 +34,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetSlideImage(arg1, arg2) {
+  return window['go']['main']['App']['GetSlideImage'](arg1, arg2);
+}
+
 export function InitializeStorage(arg1) {
   return window['go']['main']['App']['InitializeStorage'](arg1);
 }

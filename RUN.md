@@ -24,48 +24,60 @@ To package the app into a production binary:
 wails build
 ```
 Once compilation completes, the standalone executable will be generated at:
-- **Windows**: `desktop/build/bin/desktop.exe`
-- **macOS**: `desktop/build/bin/desktop.app`
-- **Linux**: `desktop/build/bin/desktop`
+- **Windows**: `desktop/build/bin/AirDeck.exe`
+- **macOS**: `desktop/build/bin/AirDeck.app`
+- **Linux**: `desktop/build/bin/AirDeck`
 
 ---
 
 ## 📱 2. Running the Mobile Application
 
-Ensure you are inside the `mobile` directory:
+Ensure you are inside the `mobile-stable` directory:
 ```bash
-cd mobile
+cd mobile-stable
 ```
 
-### Step 1: Start the Expo Packager
-Start the local Expo development server:
+### Option A: Running on a Physical Device (Recommended for BLE/Camera)
+For full support of native modules like WebRTC PeerConnections and Bluetooth Low Energy (BLE) scanning, run native builds directly on your device:
+```bash
+# For Android
+npm run android
+
+# For iOS
+npm run ios
+```
+
+### Option B: Running via Expo Go
+To test in the lightweight sandbox mode:
 ```bash
 npm run start
 ```
-
-### Step 2: Open on your physical phone
-1. Download the free **Expo Go** app from the App Store (iOS) or Google Play Store (Android).
-2. Ensure your phone is connected to the **same WiFi network** as your laptop.
-3. Open your phone camera or the Expo Go app, and scan the QR code printed in your terminal window.
+Open your phone camera or the **Expo Go** app, and scan the QR code printed in your terminal window.
 
 ---
 
 ## 🔗 3. Connecting the Ecosystem
 
 1. **Unlock Desktop Storage**:
-   - On the desktop app window, enter a passphrase (min 6 characters) to initialize and unlock your encrypted presentation storage.
+   - On the desktop app window, enter a passphrase (min 6 characters) to initialize and unlock your encrypted presentation storage library.
 2. **Load your Slides**:
-   - Tap **Upload PPTX** to open the native OS file selector and pick a `.pptx` slide file, or tap **Link Google Slides** to enter a title and a web-published slides link.
+   - Click **Upload PPTX** to pick a `.pptx` file from your computer, or **Link Google Slides** to enter a title and a web-published slides URL.
 3. **Open the Presenter Session**:
-   - Hover over the loaded presentation card and click **Present**.
-   - Note the **Room ID**, **Passcode**, and **WiFi Local IPs** displayed on the right sidebar (e.g. `192.168.1.50:12345`).
+   - Hover over the loaded presentation card and click **Present** to start.
+   - This will open the presentation dashboard and display a secure **Pairing QR Code** on the laptop screen.
 4. **Link the Mobile Remote**:
-   - In the mobile app, enter your remote friendly name, the **Local IP & Port** (e.g., `192.168.1.50:12345`), and the **Passcode** shown on the presenter window.
-   - Tap **Connect Remote**.
+   - **Method A (Wi-Fi QR Scan - Recommended)**:
+     - On the mobile app, make sure you are in the **Wi-Fi** tab.
+     - Tap **Scan Pairing QR Code**.
+     - Point your phone's camera at the QR code displayed on the desktop app. It will pair and connect automatically!
+   - **Method B (Bluetooth LE - Offline)**:
+     - On the mobile app, switch to the **Bluetooth** tab.
+     - Tap **SCAN** to search for nearby presenters.
+     - Tap on your laptop in the list to pair.
 5. **Approve Pairing Dialog**:
    - Check your laptop screen. A popup prompt will appear asking: *"Pair with [Phone Name]?"* displaying a matching security fingerprint.
    - Click **Accept** to finish the E2EE key derivation.
 6. **Start Controlling**:
-   - Swipe or tap next/prev to navigate slides.
-   - Check the **Slides** tab to view the Table of Contents outline.
-   - Touch and drag on the **Laser** tab to guide the laser pointer on the presentation screen!
+   - Swipe or tap next/prev on the mobile touchpad to navigate slides.
+   - Check the **Slides** tab on your phone to view the Table of Contents.
+   - Touch and drag on the **Laser** tab on your phone to guide the laser pointer on the presentation screen!
