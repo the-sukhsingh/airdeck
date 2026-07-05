@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
 
 interface AuthenticatingScreenProps {
   fingerprint: string;
@@ -40,13 +41,13 @@ export default function AuthenticatingScreen({
         />
         <Text
           style={{ color: textPrimary }}
-          className="text-lg font-semibold mb-2 tracking-tight text-center"
+          className="text-lg font-bold mb-2 tracking-tight text-center"
         >
           Establishing Connection
         </Text>
         <Text
           style={{ color: textSecondary }}
-          className="text-sm mb-4 text-center"
+          className="text-xs mb-6 text-center max-w-[240px] leading-5"
         >
           Securing channel via ECDH key exchange...
         </Text>
@@ -54,7 +55,7 @@ export default function AuthenticatingScreen({
         {fingerprint ? (
           <View
             style={{ backgroundColor: bgCard, borderColor: borderCol }}
-            className="border rounded-lg p-5 mt-4 w-full max-w-[280px]"
+            className="border rounded-2xl p-6 mt-2 w-full max-w-[280px]"
           >
             <Text
               style={{ color: textSecondary }}
@@ -64,13 +65,13 @@ export default function AuthenticatingScreen({
             </Text>
             <Text
               style={{ color: textPrimary }}
-              className="text-2xl font-bold font-mono mt-1.5"
+              className="text-3xl font-bold font-mono mt-2 tracking-wide"
             >
               {fingerprint}
             </Text>
             <Text
               style={{ color: textSecondary }}
-              className="text-[10px] mt-2.5 leading-4"
+              className="text-[10px] mt-3 leading-5"
             >
               Verify that this code matches the prompt shown on your laptop
               screen.
@@ -80,9 +81,14 @@ export default function AuthenticatingScreen({
 
         <TouchableOpacity
           style={{ backgroundColor: bgCard, borderColor: borderCol }}
-          className="border w-1/2 py-3.5 items-center justify-center rounded-md mt-8"
+          className="border px-8 py-3 flex-row items-center gap-1.5 rounded-full mt-10 active:opacity-70"
           onPress={onCancel}
         >
+          <Ionicons
+            name="close-circle-outline"
+            size={16}
+            color={isLight ? "#18181b" : "#f4f4f5"}
+          />
           <Text
             style={{ color: textPrimary }}
             className="text-xs font-bold tracking-wider"

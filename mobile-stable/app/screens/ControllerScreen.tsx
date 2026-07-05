@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Text,
   View,
@@ -19,6 +19,7 @@ interface ControllerScreenProps {
   totalSlides: number;
   notes: string;
   toc: SlideInfo[];
+  slideImage: string;
   theme: "light" | "dark";
   toggleTheme: () => void;
   onDisconnect: () => void;
@@ -31,6 +32,7 @@ export default function ControllerScreen({
   totalSlides,
   notes,
   toc,
+  slideImage,
   theme,
   toggleTheme,
   onDisconnect,
@@ -39,6 +41,10 @@ export default function ControllerScreen({
   const [activeTab, setActiveTab] = useState<"control" | "slides" | "laser">(
     "control"
   );
+
+  useEffect(() => {
+    sendEncryptedCommand({ action: "set-active-tab", tab: activeTab });
+  }, [activeTab]);
 
   const handleNext = () => sendEncryptedCommand({ action: "next" });
   const handlePrev = () => sendEncryptedCommand({ action: "prev" });
@@ -59,53 +65,85 @@ export default function ControllerScreen({
     >
       <StatusBar style={isLight ? "dark" : "light"} />
 
-      {/* Top Header details */}
+      {/* Styled Seamless Header details */}
       <View
-        style={{ borderBottomColor: borderCol, backgroundColor: bgCard }}
-        className="h-16 border-b flex-row items-center justify-between px-6"
+        className="flex-row items-center justify-between px-6 pt-6 pb-4"
       >
         <View className="flex-1 mr-4">
           <Text
             style={{ color: textPrimary }}
-            className="text-sm font-semibold"
+            className="text-base font-bold tracking-tight"
             numberOfLines={1}
           >
             {prezName}
           </Text>
           <Text
             style={{ color: textSecondary }}
-            className="text-[10px] font-bold font-mono mt-0.5"
+            className="text-[9px] font-bold tracking-[1.5px] mt-1.5 uppercase"
           >
             SLIDE {currentSlide} OF {totalSlides}
           </Text>
         </View>
 
-        <View className="flex-row items-center gap-3">
+        <View className="flex-row items-center gap-2.5">
           {/* Fullscreen Toggle */}
-          <TouchableOpacity onPress={handleToggleFullscreen} className="p-1">
+          <TouchableOpacity 
+            onPress={handleToggleFullscreen} 
+            style={{ 
+              width: 36, 
+              height: 36, 
+              borderRadius: 18, 
+              backgroundColor: isLight ? "#f1f1f4" : "#1c1c1f",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+            activeOpacity={0.7}
+          >
             <Ionicons
               name="expand-outline"
-              size={18}
+              size={16}
               color={isLight ? "#18181b" : "#f4f4f5"}
             />
           </TouchableOpacity>
           {/* Theme Toggle */}
-          <TouchableOpacity onPress={toggleTheme} className="p-1">
+          <TouchableOpacity 
+            onPress={toggleTheme}
+            style={{ 
+              width: 36, 
+              height: 36, 
+              borderRadius: 18, 
+              backgroundColor: isLight ? "#f1f1f4" : "#1c1c1f",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+            activeOpacity={0.7}
+          >
             <Ionicons
               name={isLight ? "moon-outline" : "sunny-outline"}
-              size={18}
+              size={16}
               color={isLight ? "#18181b" : "#f4f4f5"}
             />
           </TouchableOpacity>
           {/* Disconnect Icon */}
-          <TouchableOpacity className="p-1" onPress={onDisconnect}>
-            <Ionicons name="close-outline" size={20} color="#ef4444" />
+          <TouchableOpacity 
+            onPress={onDisconnect}
+            style={{ 
+              width: 36, 
+              height: 36, 
+              borderRadius: 18, 
+              backgroundColor: isLight ? "#fef2f2" : "#450a0a",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close-outline" size={18} color="#ef4444" />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Main tab screen selection */}
-      <View className="flex-1 py-6">
+      <View className="flex-1 py-4">
         {activeTab === "control" && (
           <ControlTab
             currentSlide={currentSlide}
@@ -127,128 +165,121 @@ export default function ControllerScreen({
         )}
 
         {activeTab === "laser" && (
-          <LaserTab theme={theme} sendEncryptedCommand={sendEncryptedCommand} />
+          <LaserTab theme={theme} sendEncryptedCommand={sendEncryptedCommand} slideImage={slideImage} />
         )}
       </View>
 
-      {/* Flat Bottom Tabs */}
-      <View
-        style={{ borderTopColor: borderCol, backgroundColor: bgCard }}
-        className="h-16 border-t flex-row"
-      >
-        <TouchableOpacity
-          className="flex-1 items-center justify-center gap-1"
+      {/* Floating Pill Bottom Tabs */}
+      <View className="px-6 pb-6 pt-2">
+        <View
           style={{
-            backgroundColor:
-              activeTab === "control" ? (isLight ? "#f4f4f5" : "#27272a") : "transparent",
+            backgroundColor: isLight ? "#f1f1f4" : "#1c1c1f",
+            borderColor: borderCol,
           }}
-          onPress={() => setActiveTab("control")}
+          className="flex-row rounded-full p-1.5 border justify-around items-center"
         >
-          <Ionicons
-            name="phone-portrait-outline"
-            size={20}
-            color={
-              activeTab === "control"
-                ? isLight
-                  ? "#0f0f11"
-                  : "#ffffff"
-                : isLight
-                ? "#71717a"
-                : "#a1a1aa"
-            }
-          />
-          <Text
+          <TouchableOpacity
             style={{
-              color:
+              flex: 1,
+              backgroundColor: activeTab === "control" ? (isLight ? "#ffffff" : "#2d2d30") : "transparent",
+              paddingVertical: 10,
+              borderRadius: 9999,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+            onPress={() => setActiveTab("control")}
+          >
+            <Ionicons
+              name="phone-portrait-outline"
+              size={16}
+              color={
                 activeTab === "control"
-                  ? isLight
-                    ? "#0f0f11"
-                    : "#ffffff"
-                  : isLight
-                  ? "#71717a"
-                  : "#a1a1aa",
-            }}
-            className="text-[9px] font-bold tracking-wider"
-          >
-            CONTROL
-          </Text>
-        </TouchableOpacity>
+                  ? textPrimary
+                  : textSecondary
+              }
+            />
+            {activeTab === "control" && (
+              <Text
+                style={{
+                  color: textPrimary,
+                }}
+                className="text-[10px] font-bold tracking-wider"
+              >
+                CONTROL
+              </Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          className="flex-1 items-center justify-center gap-1"
-          style={{
-            backgroundColor:
-              activeTab === "slides" ? (isLight ? "#f4f4f5" : "#27272a") : "transparent",
-          }}
-          onPress={() => setActiveTab("slides")}
-        >
-          <Ionicons
-            name="list-outline"
-            size={20}
-            color={
-              activeTab === "slides"
-                ? isLight
-                  ? "#0f0f11"
-                  : "#ffffff"
-                : isLight
-                ? "#71717a"
-                : "#a1a1aa"
-            }
-          />
-          <Text
+          <TouchableOpacity
             style={{
-              color:
+              flex: 1,
+              backgroundColor: activeTab === "slides" ? (isLight ? "#ffffff" : "#2d2d30") : "transparent",
+              paddingVertical: 10,
+              borderRadius: 9999,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+            onPress={() => setActiveTab("slides")}
+          >
+            <Ionicons
+              name="list-outline"
+              size={16}
+              color={
                 activeTab === "slides"
-                  ? isLight
-                    ? "#0f0f11"
-                    : "#ffffff"
-                  : isLight
-                  ? "#71717a"
-                  : "#a1a1aa",
-            }}
-            className="text-[9px] font-bold tracking-wider"
-          >
-            SLIDES
-          </Text>
-        </TouchableOpacity>
+                  ? textPrimary
+                  : textSecondary
+              }
+            />
+            {activeTab === "slides" && (
+              <Text
+                style={{
+                  color: textPrimary,
+                }}
+                className="text-[10px] font-bold tracking-wider"
+              >
+                SLIDES
+              </Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          className="flex-1 items-center justify-center gap-1"
-          style={{
-            backgroundColor:
-              activeTab === "laser" ? (isLight ? "#f4f4f5" : "#27272a") : "transparent",
-          }}
-          onPress={() => setActiveTab("laser")}
-        >
-          <Ionicons
-            name="aperture-outline"
-            size={20}
-            color={
-              activeTab === "laser"
-                ? isLight
-                  ? "#0f0f11"
-                  : "#ffffff"
-                : isLight
-                ? "#71717a"
-                : "#a1a1aa"
-            }
-          />
-          <Text
+          <TouchableOpacity
             style={{
-              color:
-                activeTab === "laser"
-                  ? isLight
-                    ? "#0f0f11"
-                    : "#ffffff"
-                  : isLight
-                  ? "#71717a"
-                  : "#a1a1aa",
+              flex: 1,
+              backgroundColor: activeTab === "laser" ? (isLight ? "#ffffff" : "#2d2d30") : "transparent",
+              paddingVertical: 10,
+              borderRadius: 9999,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
             }}
-            className="text-[9px] font-bold tracking-wider"
+            onPress={() => setActiveTab("laser")}
           >
-            LASER
-          </Text>
-        </TouchableOpacity>
+            <Ionicons
+              name="aperture-outline"
+              size={16}
+              color={
+                activeTab === "laser"
+                  ? textPrimary
+                  : textSecondary
+              }
+            />
+            {activeTab === "laser" && (
+              <Text
+                style={{
+                  color: textPrimary,
+                }}
+                className="text-[10px] font-bold tracking-wider"
+              >
+                LASER
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );

@@ -17,6 +17,7 @@ export interface SlideUpdate {
   notes: string;
   presentationName: string;
   toc?: SlideInfo[];
+  slideImage?: string;
 }
 
 export type ConnectionState = "disconnected" | "connecting" | "authenticating" | "connected";
@@ -26,6 +27,7 @@ class ConnectionManager {
   private aesKey: Uint8Array | null = null;
   private deviceName: string = "Mobile Remote";
   private activeState: ConnectionState = "disconnected";
+  private slideImageCache: { [key: string]: string } = {};
   
   // BLE State variables
   private bleManager: BleManager | null = null;
@@ -207,18 +209,35 @@ class ConnectionManager {
               this.disconnect();
             }
           } else if (payload.type === "status-update") {
+            const key = `${payload.presentationName || "Untitled"}_${payload.currentSlideIndex}`;
+            if (payload.slideImage) {
+              this.slideImageCache[key] = payload.slideImage;
+            }
+            const cachedImage = this.slideImageCache[key] || "";
+
             this.onSlideUpdate({
               currentSlideIndex: payload.currentSlideIndex,
               totalSlides: payload.totalSlides,
               notes: payload.notes || "No notes available.",
               presentationName: payload.presentationName || "Untitled Presentation",
-              toc: payload.toc
+              toc: payload.toc,
+              slideImage: cachedImage
             });
           }
         }
       } catch (err: any) {
         console.error("[Service] E2EE decrypt failure", err);
       }
+    };
+
+    this.ws.onclose = () => {
+      console.log("[Service] WebSocket connection closed after resolve.");
+      this.disconnect();
+    };
+
+    this.ws.onerror = (e) => {
+      console.log("[Service] WebSocket error after resolve:", e);
+      this.disconnect();
     };
   }
 
@@ -232,10 +251,12 @@ class ConnectionManager {
       if (!this.ws || !this.aesKey) return;
       try {
         const encText = await encryptData(plaintext, this.aesKey);
-        this.ws.send(JSON.stringify({
-          type: "encrypted",
-          ciphertext: encText
-        }));
+        if (this.ws) {
+          this.ws.send(JSON.stringify({
+            type: "encrypted",
+            ciphertext: encText
+          }));
+        }
       } catch (err) {
         console.error("[Service] Failed to encrypt/send payload", err);
       }
@@ -263,12 +284,22 @@ class ConnectionManager {
 
   private initBleManager() {
     if (!this.bleManager) {
-      this.bleManager = new BleManager();
+      try {
+        this.bleManager = new BleManager();
+      } catch (e: any) {
+        console.warn("[BLE] Failed to initialize BleManager (native module missing):", e);
+        throw new Error("BLE is not supported in this environment (requires native client builds, not supported in standard Expo Go).");
+      }
     }
   }
 
   public scanForPresenters(onDeviceFound: (device: Device) => void, onError: (err: string) => void): () => void {
-    this.initBleManager();
+    try {
+      this.initBleManager();
+    } catch (err: any) {
+      onError(err.message || "Bluetooth BLE is not supported in this environment.");
+      return () => {};
+    }
     console.log("[BLE] Starting scan for AirDeck services...");
     
     this.bleManager!.startDeviceScan(
@@ -473,12 +504,19 @@ class ConnectionManager {
           this.disconnect();
         }
       } else if (payload.type === "status-update") {
+        const key = `${payload.presentationName || "Untitled"}_${payload.currentSlideIndex}`;
+        if (payload.slideImage) {
+          this.slideImageCache[key] = payload.slideImage;
+        }
+        const cachedImage = this.slideImageCache[key] || "";
+
         this.onSlideUpdate({
           currentSlideIndex: payload.currentSlideIndex,
           totalSlides: payload.totalSlides,
           notes: payload.notes || "No notes available.",
           presentationName: payload.presentationName || "Untitled Presentation",
-          toc: payload.toc
+          toc: payload.toc,
+          slideImage: cachedImage
         });
       }
     }
@@ -514,6 +552,7 @@ class ConnectionManager {
 
     this.aesKey = null;
     this.connectionType = "wifi";
+    this.slideImageCache = {};
     if (this.activeState !== "disconnected") {
       this.updateState("disconnected");
     }

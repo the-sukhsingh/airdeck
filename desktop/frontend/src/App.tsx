@@ -1,22 +1,16 @@
 import React, { useState, useEffect } from "react";
 import {
-  IsStorageInitialized,
-  LockStorage,
   GetLibrary,
   StartPresentationSession,
   EndPresentationSession,
 } from "../wailsjs/go/main/App";
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
 
-import LockScreen from "./screens/LockScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import PresentationScreen from "./screens/PresentationScreen";
 import { Presentation, SessionInfo, ConnectionRequest } from "./types";
 
 export default function App() {
-  const [locked, setLocked] = useState<boolean>(true);
-  const [hasDb, setHasDb] = useState<boolean>(false);
-
   // Theme State
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
@@ -42,15 +36,6 @@ export default function App() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  const checkStorageStatus = async () => {
-    try {
-      const initialized = await IsStorageInitialized();
-      setHasDb(initialized);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const loadLibrary = async () => {
     try {
       const list = await GetLibrary();
@@ -60,61 +45,48 @@ export default function App() {
     }
   };
 
-  // Check storage initialization status on mount
+  // Load library & listen to Wails events on mount
   useEffect(() => {
-    checkStorageStatus();
+    loadLibrary();
+
+    EventsOn("connection-request", (data: ConnectionRequest) => {
+      setPendingRequest(data);
+    });
+
+    EventsOn("paired-device", (name: string) => {
+      setPairedDevice(name);
+      if (name) {
+        setConnState("connected");
+      } else {
+        setConnState("disconnected");
+      }
+    });
+
+    EventsOn("connection-state", (state: string) => {
+      setConnState(state);
+    });
+
+    EventsOn("slide-change", (index: number) => {
+      setCurrentSlide(index);
+    });
+
+    EventsOn("laser-move", (pos: { x: number; y: number }) => {
+      setLaserPos(pos);
+    });
+
+    EventsOn("laser-hide", () => {
+      setLaserPos(null);
+    });
+
+    return () => {
+      EventsOff("connection-request");
+      EventsOff("paired-device");
+      EventsOff("connection-state");
+      EventsOff("slide-change");
+      EventsOff("laser-move");
+      EventsOff("laser-hide");
+    };
   }, []);
-
-  // Listen to background Wails events when app is unlocked
-  useEffect(() => {
-    if (!locked) {
-      loadLibrary();
-
-      EventsOn("connection-request", (data: ConnectionRequest) => {
-        setPendingRequest(data);
-      });
-
-      EventsOn("paired-device", (name: string) => {
-        setPairedDevice(name);
-        if (name) {
-          setConnState("connected");
-        } else {
-          setConnState("disconnected");
-        }
-      });
-
-      EventsOn("connection-state", (state: string) => {
-        setConnState(state);
-      });
-
-      EventsOn("slide-change", (index: number) => {
-        setCurrentSlide(index);
-      });
-
-      EventsOn("laser-move", (pos: { x: number; y: number }) => {
-        setLaserPos(pos);
-      });
-
-      EventsOn("laser-hide", () => {
-        setLaserPos(null);
-      });
-
-      return () => {
-        EventsOff("connection-request");
-        EventsOff("paired-device");
-        EventsOff("connection-state");
-        EventsOff("slide-change");
-        EventsOff("laser-move");
-        EventsOff("laser-hide");
-      };
-    }
-  }, [locked]);
-
-  const handleLock = async () => {
-    await LockStorage();
-    setLocked(true);
-    setLibrary([]);
-  };
 
   const startPresenting = async (p: Presentation) => {
     try {
@@ -137,20 +109,6 @@ export default function App() {
     setActivePrez(null);
     loadLibrary();
   };
-
-  if (locked) {
-    return (
-      <LockScreen
-        hasDb={hasDb}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        onUnlocked={() => {
-          setLocked(false);
-          setHasDb(true);
-        }}
-      />
-    );
-  }
 
   if (activeSession && activePrez) {
     return (
@@ -178,7 +136,7 @@ export default function App() {
       toggleTheme={toggleTheme}
       onRefresh={loadLibrary}
       onPresent={startPresenting}
-      onLock={handleLock}
+      onLock={() => {}}
     />
   );
 }

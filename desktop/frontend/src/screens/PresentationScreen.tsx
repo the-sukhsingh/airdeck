@@ -20,6 +20,18 @@ import {
 } from "lucide-react";
 import { Presentation, SessionInfo, ConnectionRequest } from "../types";
 
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface DrawPath {
+  id: string;
+  tool: "pen" | "highlighter" | "eraser";
+  color: string;
+  points: Point[];
+}
+
 interface PresentationScreenProps {
   activeSession: SessionInfo;
   activePrez: Presentation;
@@ -65,6 +77,200 @@ export default function PresentationScreen({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [slideImage, setSlideImage] = useState<string>("");
   const [imageLoading, setImageLoading] = useState<boolean>(false);
+
+  const [slideDrawings, setSlideDrawings] = useState<Record<number, DrawPath[]>>({});
+  const [activePath, setActivePath] = useState<DrawPath | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Laser Pointer with glowing trail history
+  const [laserHistory, setLaserHistory] = useState<{ x: number; y: number }[]>([]);
+  const [localLaserPos, setLocalLaserPos] = useState<{ x: number; y: number } | null>(null);
+
+  const currentSlideRef = useRef(currentSlide);
+  useEffect(() => {
+    currentSlideRef.current = currentSlide;
+  }, [currentSlide]);
+
+  const activePathRef = useRef<DrawPath | null>(null);
+  useEffect(() => {
+    activePathRef.current = activePath;
+  }, [activePath]);
+
+  // Listen for Laser events
+  useEffect(() => {
+    EventsOn("laser-move", (pos: { x: number; y: number }) => {
+      setLocalLaserPos(pos);
+      setLaserHistory((prev) => {
+        const next = [...prev, pos];
+        if (next.length > 8) {
+          next.shift();
+        }
+        return next;
+      });
+    });
+
+    EventsOn("laser-hide", () => {
+      setLocalLaserPos(null);
+      setLaserHistory([]);
+    });
+
+    return () => {
+      EventsOff("laser-move");
+      EventsOff("laser-hide");
+    };
+  }, []);
+
+  function distanceToSegment(
+    p: { x: number; y: number },
+    a: { x: number; y: number },
+    b: { x: number; y: number }
+  ): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (dx === 0 && dy === 0) {
+      return Math.hypot(p.x - a.x, p.y - a.y);
+    }
+    const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
+    if (t < 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    if (t > 1) return Math.hypot(p.x - b.x, p.y - b.y);
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  }
+
+  const erasePathsNear = (x: number, y: number, slideIdx: number) => {
+    const threshold = 0.03; // 3%
+    setSlideDrawings((prev) => {
+      const paths = prev[slideIdx] || [];
+      const filtered = paths.filter((path) => {
+        for (let i = 0; i < path.points.length - 1; i++) {
+          const dist = distanceToSegment({ x, y }, path.points[i], path.points[i + 1]);
+          if (dist < threshold) return false;
+        }
+        if (path.points.length === 1) {
+          const dist = Math.hypot(path.points[0].x - x, path.points[0].y - y);
+          if (dist < threshold) return false;
+        }
+        return true;
+      });
+      return {
+        ...prev,
+        [slideIdx]: filtered,
+      };
+    });
+  };
+
+  // Listen for Draw events
+  useEffect(() => {
+    EventsOn("draw-start", (data: any) => {
+      const slideIdx = currentSlideRef.current;
+      if (data.tool === "eraser") {
+        erasePathsNear(data.x, data.y, slideIdx);
+      } else {
+        const id = Math.random().toString(36).substr(2, 9);
+        const newPath: DrawPath = {
+          id,
+          tool: data.tool || "pen",
+          color: data.color || "red",
+          points: [{ x: data.x, y: data.y }]
+        };
+        setActivePath(newPath);
+      }
+    });
+
+    EventsOn("draw-move", (data: any) => {
+      const slideIdx = currentSlideRef.current;
+      if (activePathRef.current) {
+        setActivePath((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            points: [...prev.points, { x: data.x, y: data.y }]
+          };
+        });
+      } else {
+        erasePathsNear(data.x, data.y, slideIdx);
+      }
+    });
+
+    EventsOn("draw-end", () => {
+      const slideIdx = currentSlideRef.current;
+      if (activePathRef.current) {
+        const path = activePathRef.current;
+        setSlideDrawings((prev) => {
+          const paths = prev[slideIdx] || [];
+          return {
+            ...prev,
+            [slideIdx]: [...paths, path]
+          };
+        });
+        setActivePath(null);
+      }
+    });
+
+    EventsOn("draw-clear", () => {
+      const slideIdx = currentSlideRef.current;
+      setSlideDrawings((prev) => ({
+        ...prev,
+        [slideIdx]: []
+      }));
+    });
+
+    return () => {
+      EventsOff("draw-start");
+      EventsOff("draw-move");
+      EventsOff("draw-end");
+      EventsOff("draw-clear");
+    };
+  }, []);
+
+  // Redraw Canvas overlay
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !dimensions) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+
+    const paths = slideDrawings[currentSlide] || [];
+    const allPaths = activePath ? [...paths, activePath] : paths;
+
+    allPaths.forEach((path) => {
+      if (path.points.length === 0) return;
+      ctx.beginPath();
+
+      if (path.tool === "highlighter") {
+        ctx.strokeStyle = "rgba(254, 240, 138, 0.4)"; // highlighter yellow
+        ctx.lineWidth = 18;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.globalAlpha = 0.5;
+        ctx.globalCompositeOperation = "multiply";
+      } else {
+        const colorMap: Record<string, string> = {
+          red: "#ef4444",
+          blue: "#3b82f6",
+          green: "#22c55e",
+        };
+        ctx.strokeStyle = colorMap[path.color] || path.color || "#ef4444";
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = "source-over";
+      }
+
+      const p0 = path.points[0];
+      ctx.moveTo(p0.x * dimensions.width, p0.y * dimensions.height);
+      for (let i = 1; i < path.points.length; i++) {
+        const p = path.points[i];
+        ctx.lineTo(p.x * dimensions.width, p.y * dimensions.height);
+      }
+      ctx.stroke();
+    });
+
+    ctx.globalAlpha = 1.0;
+    ctx.globalCompositeOperation = "source-over";
+  }, [slideDrawings, activePath, currentSlide, dimensions]);
 
   // Capture slide container dimensions for responsive scaling preserving 16:9 aspect ratio
   useEffect(() => {
@@ -226,7 +432,13 @@ export default function PresentationScreen({
         }
       } catch (err: any) {
         console.error("Failed to render PPTX:", err);
-        setPptxError(err.message || "Failed to render PPTX file.");
+        const errMsg = err.message || "";
+        const isNonFatal = errMsg.includes("undefined") || errMsg.includes("null") || errMsg.includes("background");
+        if (!isNonFatal) {
+          setPptxError(errMsg || "Failed to render PPTX file.");
+        } else {
+          console.warn("Muted non-fatal rendering layout error:", errMsg);
+        }
       }
     };
 
@@ -449,7 +661,7 @@ export default function PresentationScreen({
                     minHeight: 0,
                     backgroundColor: "#000",
                     border: "1px solid var(--border-color)",
-                    borderRadius: "var(--radius-medium)",
+                    borderRadius: "var(--radius-large)",
                     position: "relative",
                     display: "flex",
                     alignItems: "center",
@@ -480,7 +692,7 @@ export default function PresentationScreen({
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                borderRadius: "var(--radius-subtle)",
+                borderRadius: "var(--radius-full)",
               }}
               title={"Enter Fullscreen (F)"}
             >
@@ -564,41 +776,98 @@ export default function PresentationScreen({
               </div>
             )}
 
-            {/* Laser Pointer overlay */}
-            {laserPos && slideAreaRef.current && dimensions && (
-              <div
+            {/* Drawing Canvas Overlay */}
+            {dimensions && slideAreaRef.current && (
+              <canvas
+                ref={canvasRef}
+                width={dimensions.width}
+                height={dimensions.height}
                 style={{
                   position: "absolute",
-                  left: `${
-                    (slideAreaRef.current.clientWidth - dimensions.width) / 2 +
-                    laserPos.x * dimensions.width
-                  }px`,
-                  top: `${
-                    (slideAreaRef.current.clientHeight - dimensions.height) / 2 +
-                    laserPos.y * dimensions.height
-                  }px`,
-                  width: "12px",
-                  height: "12px",
-                  backgroundColor: "red",
-                  borderRadius: "50%",
-                  transform: "translate(-50%, -50%)",
+                  left: `${(slideAreaRef.current.clientWidth - dimensions.width) / 2}px`,
+                  top: `${(slideAreaRef.current.clientHeight - dimensions.height) / 2}px`,
+                  width: `${dimensions.width}px`,
+                  height: `${dimensions.height}px`,
                   pointerEvents: "none",
-                  zIndex: 9999,
+                  zIndex: 9990,
                 }}
               />
+            )}
+
+            {/* Laser Pointer & Glowing Tail Overlay */}
+            {slideAreaRef.current && dimensions && (laserHistory.length > 0 || localLaserPos) && (
+              <svg
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                  zIndex: 9995,
+                }}
+              >
+                {/* Laser Tail */}
+                {laserHistory.map((point, index) => {
+                  if (index === 0) return null;
+                  const prevPoint = laserHistory[index - 1];
+                  const x1 = (slideAreaRef.current!.clientWidth - dimensions.width) / 2 + prevPoint.x * dimensions.width;
+                  const y1 = (slideAreaRef.current!.clientHeight - dimensions.height) / 2 + prevPoint.y * dimensions.height;
+                  const x2 = (slideAreaRef.current!.clientWidth - dimensions.width) / 2 + point.x * dimensions.width;
+                  const y2 = (slideAreaRef.current!.clientHeight - dimensions.height) / 2 + point.y * dimensions.height;
+
+                  const opacity = (index / laserHistory.length) * 0.7;
+                  const strokeWidth = (index / laserHistory.length) * 5 + 1.5;
+
+                  return (
+                    <line
+                      key={index}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="red"
+                      strokeWidth={strokeWidth}
+                      strokeLinecap="round"
+                      opacity={opacity}
+                      style={{ filter: "drop-shadow(0px 0px 3px rgba(255, 0, 0, 0.8))" }}
+                    />
+                  );
+                })}
+
+                {/* Glowing Laser Dot */}
+                {localLaserPos && (
+                  <>
+                    <circle
+                      cx={(slideAreaRef.current.clientWidth - dimensions.width) / 2 + localLaserPos.x * dimensions.width}
+                      cy={(slideAreaRef.current.clientHeight - dimensions.height) / 2 + localLaserPos.y * dimensions.height}
+                      r={7}
+                      fill="red"
+                      style={{ filter: "drop-shadow(0px 0px 5px rgba(255, 0, 0, 0.9))" }}
+                    />
+                    <circle
+                      cx={(slideAreaRef.current.clientWidth - dimensions.width) / 2 + localLaserPos.x * dimensions.width}
+                      cy={(slideAreaRef.current.clientHeight - dimensions.height) / 2 + localLaserPos.y * dimensions.height}
+                      r={2}
+                      fill="white"
+                    />
+                  </>
+                )}
+              </svg>
             )}
           </div>
 
           {/* Slide Navigation & Progress */}
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-            {/* Flat Progress bar */}
-            <div style={{ height: "3px", backgroundColor: "var(--bg-tertiary)", width: "100%" }}>
+            {/* Rounded Progress bar */}
+            <div style={{ height: "4px", backgroundColor: "var(--bg-tertiary)", width: "100%", borderRadius: "var(--radius-full)", overflow: "hidden" }}>
               <div
                 style={{
                   height: "100%",
                   backgroundColor: "var(--text-primary)",
                   width: `${progressPercent}%`,
                   transition: "width 0.2s ease",
+                  borderRadius: "var(--radius-full)",
                 }}
               />
             </div>
@@ -656,7 +925,7 @@ export default function PresentationScreen({
                 justifyContent: "center",
                 alignItems: "center",
                 border: "1px solid var(--border-color)",
-                borderRadius: "var(--radius-medium)",
+                borderRadius: "var(--radius-large)",
                 padding: "12px",
                 backgroundColor: "#ffffff",
                 marginTop: "4px",
@@ -683,7 +952,7 @@ export default function PresentationScreen({
               <div
                 style={{
                   border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-medium)",
+                  borderRadius: "var(--radius-large)",
                   padding: "var(--space-md)",
                   backgroundColor: "var(--bg-primary)",
                   display: "flex",
@@ -743,6 +1012,27 @@ export default function PresentationScreen({
                 Scan to control slides
               </div>
             )}
+          </div>
+
+          {/* Speaker Notes Area */}
+          <div style={{ width: "100%", marginTop: "var(--space-md)", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+            <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "8px" }}>
+              Speaker Notes
+            </span>
+            <div
+              style={{
+                flex: 1,
+                border: "1px solid var(--border-color)",
+                borderRadius: "var(--radius-large)",
+                padding: "var(--space-md)",
+                backgroundColor: "var(--bg-primary)",
+                overflowY: "auto",
+              }}
+            >
+              <p style={{ fontSize: "13px", lineHeight: "1.6", color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
+                {currentSlideData?.notes || "No notes for this slide."}
+              </p>
+            </div>
           </div>
         </div>
       </div>

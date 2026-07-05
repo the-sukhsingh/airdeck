@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"desktop/internal/ble"
@@ -13,13 +14,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log"
 	"math/big"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,10 +36,13 @@ import (
 )
 
 type ControlMessage struct {
-	Action string  `json:"action"`          // "next", "prev", "goto", "laser", "laser-off", "request-slides"
+	Action string  `json:"action"`          // "next", "prev", "goto", "laser", "laser-off", "request-slides", "draw-start", "draw-move", "draw-end", "draw-clear", "set-active-tab"
 	Index  int     `json:"index,omitempty"` // For "goto"
-	X      float64 `json:"x,omitempty"`     // For "laser" (0.0 to 1.0)
-	Y      float64 `json:"y,omitempty"`     // For "laser" (0.0 to 1.0)
+	X      float64 `json:"x,omitempty"`     // For "laser" / "draw" (0.0 to 1.0)
+	Y      float64 `json:"y,omitempty"`     // For "laser" / "draw" (0.0 to 1.0)
+	Tool   string  `json:"tool,omitempty"`  // "pen", "highlighter", "eraser"
+	Color  string  `json:"color,omitempty"` // Color for drawing
+	Tab    string  `json:"tab,omitempty"`    // Active mobile tab ("laser", "control", "slides")
 }
 
 type HandshakeMessage struct {
@@ -60,10 +71,11 @@ type App struct {
 	bleServer     *ble.BLEServer
 
 	// Session variables
-	roomID           string
-	passcode         string
-	activePrez       *storage.Presentation
-	currentSlideIndex int // 1-indexed
+	roomID            string
+	passcode          string
+	activePrez        *storage.Presentation
+	currentSlideIndex int    // 1-indexed
+	activeClientTab   string // active mobile tab: "laser", "control", "slides"
 
 	// E2EE Connection states
 	keyPair          *crypto.KeyPair
@@ -277,26 +289,103 @@ func (a *App) SelectAndUploadPresentation() (storage.Presentation, error) {
 }
 
 
-// SaveGoogleSlidesLink saves a Google Slide URL to the library
+func fetchGoogleSlidesMetadata(url string) (string, int) {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Printf("[GoogleSlides] Fetch failed: %v", err)
+		return "", 0
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[GoogleSlides] Fetch HTTP status failed: %d", resp.StatusCode)
+		return "", 0
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[GoogleSlides] Read body failed: %v", err)
+		return "", 0
+	}
+	body := string(bodyBytes)
+
+	// 1. Extract Title
+	title := ""
+	reTitleJS := regexp.MustCompile(`title\s*:\s*'([^']+)'`)
+	matchTitleJS := reTitleJS.FindStringSubmatch(body)
+	if len(matchTitleJS) > 1 {
+		title = matchTitleJS[1]
+	} else {
+		reTitleHTML := regexp.MustCompile(`(?i)<title>(.*?)</title>`)
+		matchTitleHTML := reTitleHTML.FindStringSubmatch(body)
+		if len(matchTitleHTML) > 1 {
+			title = matchTitleHTML[1]
+			title = strings.TrimSuffix(title, " - Google Slides")
+		}
+	}
+
+	// 2. Extract Slide count
+	totalSlides := 0
+	reSlides := regexp.MustCompile(`slidePageCount\s*:\s*([\d\.]+)`)
+	matchSlides := reSlides.FindStringSubmatch(body)
+	if len(matchSlides) > 1 {
+		if val, err := strconv.ParseFloat(matchSlides[1], 64); err == nil {
+			totalSlides = int(val)
+		}
+	}
+
+	log.Printf("[GoogleSlides] Metadata fetched successfully. Title: %q, Slides: %d", title, totalSlides)
+	return title, totalSlides
+}
+
+// AddGoogleSlidesLink saves a Google Slide URL to the library
 func (a *App) AddGoogleSlidesLink(name string, url string) (storage.Presentation, error) {
 	if !a.storage.IsUnlocked() {
 		return storage.Presentation{}, errors.New("database locked")
 	}
 
-	if url == "" || name == "" {
-		return storage.Presentation{}, errors.New("name and URL cannot be empty")
+	if url == "" {
+		return storage.Presentation{}, errors.New("URL cannot be empty")
+	}
+
+	extTitle, extSlides := fetchGoogleSlidesMetadata(url)
+
+	finalName := name
+	if finalName == "" {
+		if extTitle != "" {
+			finalName = extTitle
+		} else {
+			finalName = "Google Slides"
+		}
+	}
+
+	totalSlides := 100
+	if extSlides > 0 {
+		totalSlides = extSlides
+	}
+
+	slides := make([]storage.SlideData, totalSlides)
+	for i := 0; i < totalSlides; i++ {
+		slides[i] = storage.SlideData{
+			Index: i + 1,
+			Title: fmt.Sprintf("Slide %d", i+1),
+			Notes: "",
+		}
 	}
 
 	id := uuid.New().String()
 	p := storage.Presentation{
 		ID:              id,
-		Name:            name,
+		Name:            finalName,
 		Source:          "google",
 		GoogleSlidesURL: url,
 		IsStarred:       false,
 		Folder:          "",
-		TotalSlides:     100, // Large number placeholder for web presentations
-		Slides:          []storage.SlideData{},
+		TotalSlides:     totalSlides,
+		Slides:          slides,
 		CreatedAt:       time.Now().UnixNano() / int64(time.Millisecond),
 	}
 
@@ -371,6 +460,7 @@ func (a *App) StartPresentationSession(prezID string) (SessionInfo, error) {
 
 	a.activePrez = p
 	a.currentSlideIndex = 1
+	a.activeClientTab = "control"
 	a.paired = false
 	a.sharedSecretKey = nil
 
@@ -651,10 +741,31 @@ func (a *App) handleDecryptedPayload(payload []byte) {
 		})
 	case "laser-off":
 		wailsRuntime.EventsEmit(a.ctx, "laser-hide", nil)
+	case "draw-start":
+		wailsRuntime.EventsEmit(a.ctx, "draw-start", map[string]interface{}{
+			"x":     cmd.X,
+			"y":     cmd.Y,
+			"tool":  cmd.Tool,
+			"color": cmd.Color,
+		})
+	case "draw-move":
+		wailsRuntime.EventsEmit(a.ctx, "draw-move", map[string]interface{}{
+			"x": cmd.X,
+			"y": cmd.Y,
+		})
+	case "draw-end":
+		wailsRuntime.EventsEmit(a.ctx, "draw-end", nil)
+	case "draw-clear":
+		wailsRuntime.EventsEmit(a.ctx, "draw-clear", nil)
 	case "fullscreen":
 		wailsRuntime.EventsEmit(a.ctx, "toggle-fullscreen", nil)
 	case "request-slides":
 		a.sendSlidesUpdate()
+	case "set-active-tab":
+		a.activeClientTab = cmd.Tab
+		if cmd.Tab == "laser" {
+			a.sendSlidesUpdate()
+		}
 	}
 }
 
@@ -684,28 +795,68 @@ func (a *App) sendSlidesUpdate() {
 		}
 	}
 
-	updatePayload, _ := json.Marshal(map[string]interface{}{
-		"type":              "status-update",
-		"currentSlideIndex": slideIndex,
-		"totalSlides":       a.activePrez.TotalSlides,
-		"notes":             notes,
-		"presentationName":  a.activePrez.Name,
-		"toc":               toc,
-	})
+	prezID := a.activePrez.ID
+	prezSource := a.activePrez.Source
+	prezName := a.activePrez.Name
+	totalSlides := a.activePrez.TotalSlides
+	activeClientTab := a.activeClientTab
 
-	// Encrypt status update
-	encBytes, err := crypto.Encrypt(updatePayload, a.sharedSecretKey)
-	if err != nil {
-		return
-	}
+	// Copy shared secret key to avoid race conditions
+	sharedSecretKey := make([]byte, len(a.sharedSecretKey))
+	copy(sharedSecretKey, a.sharedSecretKey)
 
-	encWrapper, _ := json.Marshal(EncryptedWrapper{
-		Type:       "encrypted",
-		Ciphertext: base64.StdEncoding.EncodeToString(encBytes),
-	})
+	go func() {
+		// 1. Fetch slide image for WebRTC (only needed for Wifi when the mobile is actively on the laser tab)
+		var slideImage string
+		if activeClientTab == "laser" && prezSource == "pptx" {
+			img, err := a.GetSlideImageCompressed(prezID, slideIndex)
+			if err == nil {
+				slideImage = img
+			}
+		}
 
-	a.webrtcManager.SendMessage(encWrapper)
-	a.bleServer.SendStatusUpdate(encWrapper)
+		// 2. Prepare WebRTC status payload WITH image
+		updatePayloadWebRTC, _ := json.Marshal(map[string]interface{}{
+			"type":              "status-update",
+			"currentSlideIndex": slideIndex,
+			"totalSlides":       totalSlides,
+			"notes":             notes,
+			"presentationName":  prezName,
+			"toc":               toc,
+			"slideImage":        slideImage,
+		})
+
+		// Encrypt WebRTC update
+		encBytesWebRTC, err := crypto.Encrypt(updatePayloadWebRTC, sharedSecretKey)
+		if err == nil {
+			encWrapperWebRTC, _ := json.Marshal(EncryptedWrapper{
+				Type:       "encrypted",
+				Ciphertext: base64.StdEncoding.EncodeToString(encBytesWebRTC),
+			})
+			a.webrtcManager.SendMessage(encWrapperWebRTC)
+		}
+
+		// 3. Prepare BLE status payload WITH image (now optimized at 10-15KB)
+		updatePayloadBLE, _ := json.Marshal(map[string]interface{}{
+			"type":              "status-update",
+			"currentSlideIndex": slideIndex,
+			"totalSlides":       totalSlides,
+			"notes":             notes,
+			"presentationName":  prezName,
+			"toc":               toc,
+			"slideImage":        slideImage,
+		})
+
+		// Encrypt BLE update
+		encBytesBLE, err := crypto.Encrypt(updatePayloadBLE, sharedSecretKey)
+		if err == nil {
+			encWrapperBLE, _ := json.Marshal(EncryptedWrapper{
+				Type:       "encrypted",
+				Ciphertext: base64.StdEncoding.EncodeToString(encBytesBLE),
+			})
+			a.bleServer.SendStatusUpdate(encWrapperBLE)
+		}
+	}()
 }
 
 func (a *App) handleConnectionState(state string) {
@@ -842,4 +993,64 @@ func (a *App) GetSlideImage(prezID string, slideIndex int) (string, error) {
 	}
 
 	return base64.StdEncoding.EncodeToString(bytes), nil
+}
+
+func resizeImage(img image.Image, maxWidth int) image.Image {
+	bounds := img.Bounds()
+	originalWidth := bounds.Dx()
+	originalHeight := bounds.Dy()
+	if originalWidth <= maxWidth {
+		return img
+	}
+
+	ratio := float64(originalWidth) / float64(maxWidth)
+	height := int(float64(originalHeight) / ratio)
+
+	newImg := image.NewRGBA(image.Rect(0, 0, maxWidth, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < maxWidth; x++ {
+			origX := int(float64(x) * ratio)
+			origY := int(float64(y) * ratio)
+			newImg.Set(x, y, img.At(origX, origY))
+		}
+	}
+	return newImg
+}
+
+// GetSlideImageCompressed reads the PNG slide image, resizes it, and encodes it to a low-quality JPEG
+func (a *App) GetSlideImageCompressed(prezID string, slideIndex int) (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	imagePath := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.PNG", slideIndex))
+	if _, err := os.Stat(imagePath); err != nil {
+		imagePathLower := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.png", slideIndex))
+		if _, err := os.Stat(imagePathLower); err != nil {
+			return "", errors.New("slide image not ready or not found")
+		}
+		imagePath = imagePathLower
+	}
+
+	pngFile, err := os.Open(imagePath)
+	if err != nil {
+		return "", err
+	}
+	defer pngFile.Close()
+
+	img, err := png.Decode(pngFile)
+	if err != nil {
+		return "", err
+	}
+
+	resizedImg := resizeImage(img, 600)
+
+	var buf bytes.Buffer
+	err = jpeg.Encode(&buf, resizedImg, &jpeg.Options{Quality: 60})
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }

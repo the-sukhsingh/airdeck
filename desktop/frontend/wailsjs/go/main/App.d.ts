@@ -21,6 +21,8 @@ export function GetSettings():Promise<storage.Settings>;
 
 export function GetSlideImage(arg1:string,arg2:number):Promise<string>;
 
+export function GetSlideImageCompressed(arg1:string,arg2:number):Promise<string>;
+
 export function InitializeStorage(arg1:string):Promise<void>;
 
 export function IsStorageInitialized():Promise<boolean>;

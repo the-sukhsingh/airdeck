@@ -118,7 +118,7 @@ export default function LockScreen({
             style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-              <h3 style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
+              <h3 style={{ fontSize: "9px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: "2px" }}>
                 Set AES Encryption Key
               </h3>
               <input
@@ -130,7 +130,7 @@ export default function LockScreen({
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-              <h3 style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
+              <h3 style={{ fontSize: "9px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: "2px" }}>
                 Confirm Encryption Key
               </h3>
               <input
@@ -168,7 +168,7 @@ export default function LockScreen({
             style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-              <h3 style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
+              <h3 style={{ fontSize: "9px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: "2px" }}>
                 Unlock Encrypted Database
               </h3>
               <input

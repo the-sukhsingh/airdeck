@@ -68,7 +68,7 @@ export default function DashboardScreen({
 
   const handleAddGoogleLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gSlidesName || !gSlidesUrl) return;
+    if (!gSlidesUrl) return;
 
     try {
       let cleanedUrl = gSlidesUrl;
@@ -84,7 +84,7 @@ export default function DashboardScreen({
         }
       }
 
-      await AddGoogleSlidesLink(gSlidesName, cleanedUrl);
+      await AddGoogleSlidesLink(gSlidesName || "", cleanedUrl);
       setShowGoogleLinkModal(false);
       setGSlidesName("");
       setGSlidesUrl("");
@@ -179,7 +179,7 @@ export default function DashboardScreen({
               textAlign: "left",
               fontSize: "13px",
               padding: "8px 12px",
-              borderRadius: "var(--radius-subtle)",
+              borderRadius: "var(--radius-medium)",
               cursor: "pointer",
               transition: "all 0.2s ease",
             }}
@@ -197,7 +197,7 @@ export default function DashboardScreen({
               textAlign: "left",
               fontSize: "13px",
               padding: "8px 12px",
-              borderRadius: "var(--radius-subtle)",
+              borderRadius: "var(--radius-medium)",
               display: "flex",
               alignItems: "center",
               gap: "8px",
@@ -226,7 +226,7 @@ export default function DashboardScreen({
                 textAlign: "left",
                 fontSize: "13px",
                 padding: "8px 12px",
-                borderRadius: "var(--radius-subtle)",
+                borderRadius: "var(--radius-medium)",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
               }}
@@ -246,12 +246,7 @@ export default function DashboardScreen({
           </button>
         </div>
 
-        {/* Lock controls */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-          <button className="btn btn-small" onClick={onLock} style={{ width: "100%" }}>
-            <Lock size={12} /> Lock Database
-          </button>
-        </div>
+
       </div>
 
       {/* Main Library Dashboard Area */}
@@ -303,8 +298,8 @@ export default function DashboardScreen({
           <div
             style={{
               flex: 1,
-              border: "1px dashed var(--border-color)",
-              borderRadius: "var(--radius-medium)",
+              border: "1.5px dashed var(--border-color)",
+              borderRadius: "var(--radius-large)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -313,7 +308,20 @@ export default function DashboardScreen({
               padding: "var(--space-xl)",
             }}
           >
-            <Tv size={36} strokeWidth={1.5} style={{ color: "var(--text-muted)" }} />
+            <div
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                width: "56px",
+                height: "56px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "4px",
+              }}
+            >
+              <Tv size={24} strokeWidth={1.5} style={{ color: "var(--text-secondary)" }} />
+            </div>
             <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
               No presentations found in this folder.
             </p>
@@ -407,8 +415,9 @@ export default function DashboardScreen({
                         padding: "4px 8px",
                         fontSize: "11px",
                         width: "auto",
-                        border: "none",
-                        background: "none",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "var(--radius-subtle)",
+                        background: "var(--bg-primary)",
                         color: "var(--text-secondary)",
                         cursor: "pointer",
                         outline: "none",
@@ -491,7 +500,6 @@ export default function DashboardScreen({
                   placeholder="e.g. Sales Quarter Review"
                   value={gSlidesName}
                   onChange={(e) => setGSlidesName(e.target.value)}
-                  required
                 />
               </div>
 

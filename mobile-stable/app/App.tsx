@@ -62,6 +62,7 @@ export default function App() {
   const [totalSlides, setTotalSlides] = useState<number>(1);
   const [notes, setNotes] = useState<string>("No notes loaded.");
   const [toc, setToc] = useState<SlideInfo[]>([]);
+  const [slideImage, setSlideImage] = useState<string>("");
 
   // Bind service callbacks on mount
   useEffect(() => {
@@ -72,6 +73,7 @@ export default function App() {
         setScreen("connect");
         setFingerprint("");
         setToc([]);
+        setSlideImage("");
       } else if (state === "authenticating" || state === "connecting") {
         setScreen("authenticating");
       }
@@ -86,6 +88,7 @@ export default function App() {
       setTotalSlides(update.totalSlides);
       setNotes(update.notes || "No notes available.");
       setPrezName(update.presentationName || "Untitled Presentation");
+      setSlideImage(update.slideImage || "");
       if (update.toc) {
         setToc(update.toc);
       }
@@ -105,6 +108,7 @@ export default function App() {
     setScreen("connect");
     setFingerprint("");
     setToc([]);
+    setSlideImage("");
   };
 
   // Connection flow
@@ -236,6 +240,7 @@ export default function App() {
       totalSlides={totalSlides}
       notes={notes}
       toc={toc}
+      slideImage={slideImage}
       theme={theme}
       toggleTheme={toggleTheme}
       onDisconnect={disconnect}

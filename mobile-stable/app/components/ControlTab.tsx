@@ -34,16 +34,16 @@ export default function ControlTab({
       <View className="flex-1 gap-2">
         <Text
           style={{ color: textSecondary }}
-          className="text-[11px] font-bold uppercase tracking-wider"
+          className="text-[9px] font-bold uppercase tracking-wider mb-1"
         >
           SPEAKER NOTES
         </Text>
         <ScrollView
           style={{ borderColor: borderCol, backgroundColor: bgCard }}
-          className="flex-1 border rounded-lg p-4"
+          className="flex-1 border rounded-2xl"
           contentContainerStyle={{ paddingBottom: 16 }}
         >
-          <Text style={{ color: textPrimary }} className="text-sm leading-[22px] p-4 rounded-xl">
+          <Text style={{ color: textPrimary }} className="text-sm leading-[22px] p-5">
             {notes}
           </Text>
         </ScrollView>
@@ -53,30 +53,32 @@ export default function ControlTab({
       <View className="flex-row h-[60px] gap-4 mb-2">
         <TouchableOpacity
           style={{ borderColor: borderCol, backgroundColor: bgCard }}
-          className={`flex-1 border items-center justify-center rounded-lg ${
+          className={`flex-1 border items-center justify-center rounded-2xl ${
             isFirstSlide ? "opacity-30" : ""
           }`}
           onPress={onPrev}
           disabled={isFirstSlide}
+          activeOpacity={0.7}
         >
           <Ionicons
             name="chevron-back"
-            size={24}
+            size={22}
             color={isLight ? "#18181b" : "#f4f4f5"}
           />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={{ borderColor: borderCol, backgroundColor: bgCard }}
-          className={`flex-1 border flex-row items-center justify-center rounded-lg ${
+          className={`flex-1 border flex-row items-center justify-center rounded-2xl ${
             isLastSlide ? "opacity-30" : ""
           }`}
           onPress={onNext}
           disabled={isLastSlide}
+          activeOpacity={0.7}
         >
           <Ionicons
             name="chevron-forward"
-            size={24}
+            size={22}
             color={isLight ? "#18181b" : "#f4f4f5"}
           />
         </TouchableOpacity>
