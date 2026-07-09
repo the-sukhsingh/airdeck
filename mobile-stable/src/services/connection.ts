@@ -78,7 +78,7 @@ class ConnectionManager {
           try { s.close(); } catch(e){}
         });
         this.updateState("disconnected");
-        this.onError("Connection timed out.");
+        this.onError(`Connection timed out. (Attempted: ${targets.join(", ")})`);
       }
     }, 10000);
 
@@ -167,7 +167,7 @@ class ConnectionManager {
             if (failedCount === targets.length) {
               clearTimeout(timeoutId);
               this.updateState("disconnected");
-              this.onError("Failed to connect to any presenter IP.");
+              this.onError(`Failed to connect to any presenter IP. (Attempted: ${targets.join(", ")})`);
               this.disconnect();
             }
           }

@@ -10,6 +10,7 @@ import (
 	"desktop/internal/pptx"
 	"desktop/internal/storage"
 	"desktop/internal/webrtc"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,10 @@ import (
 	"github.com/google/uuid"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+//go:embed pptx_to_images.py
+var pptxToImagesPy []byte
+
 
 type ControlMessage struct {
 	Action string  `json:"action"`          // "next", "prev", "goto", "laser", "laser-off", "request-slides", "draw-start", "draw-move", "draw-end", "draw-clear", "set-active-tab"
@@ -108,8 +113,15 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	// Try to start BLE
-	a.bleServer.Start()
+	// Try to start BLE safely, catching any native panics (e.g. if Bluetooth hardware is missing/disabled)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[BLE] Panicked while starting BLE: %v. Running in Wi-Fi-only mode.", r)
+			}
+		}()
+		a.bleServer.Start()
+	}()
 }
 
 // -------------------------------------------------------------
@@ -923,7 +935,14 @@ func generateRandomPasscode() string {
 }
 
 func (a *App) WriteDebugFile(filename string, content string) error {
-	dir := `C:\Users\sukha\.gemini\antigravity-ide\brain\60d42e6c-8c9a-4947-83ab-2ed109217652\scratch`
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(configDir, "ppt-dapp", "debug")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
 	return os.WriteFile(filepath.Join(dir, filename), []byte(content), 0644)
 }
 
@@ -941,7 +960,20 @@ func findPythonScript() (string, error) {
 			return filepath.Abs(scriptPath)
 		}
 	}
-	return "", errors.New("pptx_to_images.py not found")
+	// Fallback: write the embedded python script to the user config directory
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user config dir: %w", err)
+	}
+	appDir := filepath.Join(configDir, "ppt-dapp")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create app config dir: %w", err)
+	}
+	scriptPath := filepath.Join(appDir, "pptx_to_images.py")
+	if err := os.WriteFile(scriptPath, pptxToImagesPy, 0644); err != nil {
+		return "", fmt.Errorf("failed to write embedded python script: %w", err)
+	}
+	return scriptPath, nil
 }
 
 func (a *App) exportPPTXToImages(pptxPath string, outputDir string) error {

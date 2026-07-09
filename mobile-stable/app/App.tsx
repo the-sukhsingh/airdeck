@@ -213,6 +213,7 @@ export default function App() {
         toggleTheme={toggleTheme}
         onConnect={handleConnect}
         onScanQR={handleQRScan}
+        onDismissError={() => setErrorMsg("")}
         connectionMode={connectionMode}
         setConnectionMode={setConnectionMode}
         scannedDevices={scannedDevices}

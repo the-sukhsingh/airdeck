@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View, ScrollView, TouchableOpacity } from "react-native";
+import { Text, View, ScrollView, TouchableOpacity, PanResponder } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 interface ControlTabProps {
@@ -28,8 +28,34 @@ export default function ControlTab({
   const textPrimary = isLight ? "#0f0f11" : "#f4f4f5";
   const textSecondary = isLight ? "#71717a" : "#a1a1aa";
 
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        const { dx, dy } = gestureState;
+        // Detect horizontal swipe if dx is greater than 20 and dominant over dy
+        return Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) * 1.5;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx } = gestureState;
+        if (dx > 50) {
+          // Swipe right to go to previous slide
+          if (!isFirstSlide) {
+            onPrev();
+          }
+        } else if (dx < -50) {
+          // Swipe left to go to next slide
+          if (!isLastSlide) {
+            onNext();
+          }
+        }
+      },
+      onPanResponderTerminate: () => {},
+    })
+  ).current;
+
   return (
-    <View className="flex-1 gap-6 px-4">
+    <View className="flex-1 gap-6 px-4" {...panResponder.panHandlers}>
       {/* Speaker Notes */}
       <View className="flex-1 gap-2">
         <Text

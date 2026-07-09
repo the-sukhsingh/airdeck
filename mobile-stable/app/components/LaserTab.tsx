@@ -12,11 +12,19 @@ interface LaserTabProps {
   theme: "light" | "dark";
   sendEncryptedCommand: (cmd: any) => Promise<void>;
   slideImage: string;
+  currentSlide: number;
+  totalSlides: number;
 }
 
 type ToolType = "laser" | "pen" | "highlighter" | "eraser";
 
-export default function LaserTab({ theme, sendEncryptedCommand, slideImage }: LaserTabProps) {
+export default function LaserTab({
+  theme,
+  sendEncryptedCommand,
+  slideImage,
+  currentSlide,
+  totalSlides,
+}: LaserTabProps) {
   const touchpadRef = useRef<View>(null);
   const [touchpadLayout, setTouchpadLayout] = useState({ width: 1, height: 1 });
   const [activeTool, setActiveTool] = useState<ToolType>("laser");
@@ -307,6 +315,41 @@ export default function LaserTab({ theme, sendEncryptedCommand, slideImage }: La
             }}
           />
         )}
+      </View>
+
+      {/* Laser Slide Navigation Controls */}
+      <View className="flex-row h-[48px] gap-4 mb-1">
+        <TouchableOpacity
+          style={{ borderColor: borderCol, backgroundColor: bgCard }}
+          className={`flex-1 border items-center justify-center rounded-2xl ${
+            currentSlide === 1 ? "opacity-30" : ""
+          }`}
+          onPress={() => sendEncryptedCommand({ action: "prev" })}
+          disabled={currentSlide === 1}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={20}
+            color={isLight ? "#18181b" : "#f4f4f5"}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={{ borderColor: borderCol, backgroundColor: bgCard }}
+          className={`flex-1 border items-center justify-center rounded-2xl ${
+            currentSlide === totalSlides ? "opacity-30" : ""
+          }`}
+          onPress={() => sendEncryptedCommand({ action: "next" })}
+          disabled={currentSlide === totalSlides}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={isLight ? "#18181b" : "#f4f4f5"}
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );

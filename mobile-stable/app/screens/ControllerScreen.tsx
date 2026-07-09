@@ -165,7 +165,13 @@ export default function ControllerScreen({
         )}
 
         {activeTab === "laser" && (
-          <LaserTab theme={theme} sendEncryptedCommand={sendEncryptedCommand} slideImage={slideImage} />
+          <LaserTab
+            theme={theme}
+            sendEncryptedCommand={sendEncryptedCommand}
+            slideImage={slideImage}
+            currentSlide={currentSlide}
+            totalSlides={totalSlides}
+          />
         )}
       </View>
 

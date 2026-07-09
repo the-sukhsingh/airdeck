@@ -21,6 +21,7 @@ interface ConnectScreenProps {
   passcode: string;
   setPasscode: (code: string) => void;
   errorMsg: string;
+  onDismissError?: () => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
   onConnect: () => void;
@@ -40,6 +41,7 @@ export default function ConnectScreen(props: ConnectScreenProps) {
     deviceName,
     setDeviceName,
     errorMsg,
+    onDismissError,
     theme,
     toggleTheme,
     onScanQR,
@@ -172,6 +174,20 @@ export default function ConnectScreen(props: ConnectScreenProps) {
             <Text className="text-[#ef4444] text-xs font-semibold flex-1 leading-4">
               {errorMsg}
             </Text>
+            {onDismissError && (
+              <TouchableOpacity 
+                onPress={onDismissError} 
+                activeOpacity={0.7} 
+                style={{ padding: 2 }}
+                accessibilityLabel="Dismiss error"
+              >
+                <Ionicons
+                  name="close-outline"
+                  size={16}
+                  color="#ef4444"
+                />
+              </TouchableOpacity>
+            )}
           </View>
         ) : null}
 
