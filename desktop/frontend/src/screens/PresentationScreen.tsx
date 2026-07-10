@@ -78,8 +78,6 @@ export default function PresentationScreen({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [slideImage, setSlideImage] = useState<string>("");
   const [imageLoading, setImageLoading] = useState<boolean>(false);
-  const [exportProgress, setExportProgress] = useState<number | null>(null);
-  const [exportError, setExportError] = useState<string>("");
 
   const [slideDrawings, setSlideDrawings] = useState<Record<number, DrawPath[]>>({});
   const [activePath, setActivePath] = useState<DrawPath | null>(null);
@@ -386,23 +384,18 @@ export default function PresentationScreen({
     try {
       const base64Data = await GetSlideImage(activePrez.id, currentSlide);
       setSlideImage(`data:image/png;base64,${base64Data}`);
-      setExportProgress(null);
-      setExportError("");
     } catch (err) {
-      console.log("Slide image not available on disk yet. Checking if export is needed:", err);
+      console.log("Slide image not available on disk yet:", err);
+      setSlideImage("");
+      // Trigger background export silently if slides aren't exported at all
       try {
         await GetSlideImage(activePrez.id, 1);
-        setSlideImage("");
       } catch (checkErr) {
         console.log("Triggering slide images generation on Go backend...");
-        setSlideImage("");
-        setExportProgress(0);
         try {
           await ExportPresentationImages(activePrez.id);
         } catch (exportErr: any) {
           console.error("Failed to trigger presentation slide export:", exportErr);
-          setExportError(exportErr.message || "Failed to trigger slide images export");
-          setExportProgress(null);
         }
       }
     } finally {
@@ -419,35 +412,75 @@ export default function PresentationScreen({
   useEffect(() => {
     if (activePrez.source !== "pptx") return;
 
-    EventsOn("export-progress", (data: any) => {
-      if (data.id === activePrez.id) {
-        setExportProgress(data.percent);
-      }
-    });
-
-    EventsOn("export-complete", (data: any) => {
+    const handleComplete = (data: any) => {
       if (data.id === activePrez.id) {
         console.log("Backend export complete! Fetching slide image...");
-        setExportProgress(null);
-        setExportError("");
         fetchImage();
       }
-    });
+    };
 
-    EventsOn("export-error", (data: any) => {
-      if (data.id === activePrez.id) {
-        console.error("Backend slide export error:", data.error);
-        setExportProgress(null);
-        setExportError(data.error);
-      }
-    });
+    EventsOn("export-complete", handleComplete);
 
     return () => {
-      EventsOff("export-progress");
       EventsOff("export-complete");
-      EventsOff("export-error");
     };
   }, [activePrez.id]);
+
+  // Initialize and update pptx-preview viewer when slideImage is not ready
+  useEffect(() => {
+    if (slideImage) return; // Skip if we have a cached image
+    if (!pptxBuffer || !dimensions) return;
+
+    let viewer: any = null;
+
+    const renderPptx = async () => {
+      try {
+        const pptxPreview = await import("pptx-preview");
+        if (pptxContainerRef.current) {
+          pptxContainerRef.current.innerHTML = "";
+
+          viewer = pptxPreview.init(pptxContainerRef.current, {
+            mode: "slide",
+            width: dimensions.width,
+            height: dimensions.height,
+          });
+          previewerRef.current = viewer;
+
+          await viewer.preview(pptxBuffer);
+          viewer.renderSingleSlide(currentSlide - 1);
+        }
+      } catch (err: any) {
+        console.error("Failed to render PPTX on-the-fly:", err);
+      }
+    };
+
+    renderPptx();
+
+    return () => {
+      if (viewer) {
+        try {
+          viewer.destroy();
+        } catch {}
+      }
+      previewerRef.current = null;
+    };
+  }, [pptxBuffer, dimensions, slideImage]);
+
+  // Sync slide change when rendering on-the-fly
+  useEffect(() => {
+    if (slideImage) return; // Skip if we have a cached image
+    if (
+      previewerRef.current &&
+      activePrez.source === "pptx" &&
+      !pptxLoading
+    ) {
+      try {
+        previewerRef.current.renderSingleSlide(currentSlide - 1);
+      } catch (err) {
+        console.error("Error rendering slide on-the-fly:", err);
+      }
+    }
+  }, [currentSlide, activePrez, pptxLoading, slideImage]);
 
   const toggleFullscreen = () => {
     if (isFullscreen) {
@@ -686,46 +719,7 @@ export default function PresentationScreen({
                   overflow: "hidden",
                 }}
               >
-                {exportProgress !== null && (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", height: "100%", width: "100%", color: "#fff" }}>
-                    <Loader2 className="animate-spin" size={32} style={{ color: "var(--accent-blue)" }} />
-                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>Optimizing slides for presentation...</h3>
-                    <p style={{ margin: 0, fontSize: "12px", color: "var(--text-secondary)" }}>This happens only once per slide deck.</p>
-                    <div style={{ width: "300px", height: "6px", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: "3px", overflow: "hidden", marginTop: "8px" }}>
-                      <div style={{ width: `${exportProgress}%`, height: "100%", backgroundColor: "var(--accent-blue)", transition: "width 0.2s ease" }} />
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: "bold", color: "var(--text-secondary)" }}>{exportProgress}%</span>
-                  </div>
-                )}
-                {exportError && (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", height: "100%", width: "100%", color: "var(--accent-red)", padding: "20px" }}>
-                    <h3 style={{ margin: 0, fontSize: "16px" }}>Failed to generate slide previews</h3>
-                    <p style={{ margin: 0, fontSize: "12px", color: "var(--text-secondary)", maxWidth: "400px", textAlign: "center" }}>{exportError}</p>
-                    <button 
-                      onClick={() => { setExportError(""); fetchImage(); }} 
-                      style={{ padding: "8px 16px", backgroundColor: "var(--accent-blue)", color: "#fff", border: "none", borderRadius: "var(--radius-medium)", cursor: "pointer", fontWeight: "500", fontSize: "12px" }}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-                {exportProgress === null && !exportError && imageLoading && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      zIndex: 10,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "8px",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    <Loader2 className="animate-spin" size={24} style={{ color: "#fff" }} />
-                    <span style={{ fontSize: "12px" }}>Loading slide...</span>
-                  </div>
-                )}
-                {exportProgress === null && !exportError && slideImage && (
+                {slideImage ? (
                   <img
                     src={slideImage}
                     alt={`Slide ${currentSlide}`}
@@ -734,6 +728,18 @@ export default function PresentationScreen({
                       height: "100%",
                       objectFit: "contain",
                     }}
+                  />
+                ) : (
+                  <div
+                    ref={pptxContainerRef}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    className="pptx-render-container"
                   />
                 )}
               </div>

@@ -981,10 +981,12 @@ func (a *App) exportPPTXToImages(pptxPath string, outputDir string) error {
 
 	// Try running "python" first
 	cmd := exec.Command("python", scriptPath, pptxPath, outputDir)
+	hideConsoleWindow(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// Fallback to "python3"
 		cmd3 := exec.Command("python3", scriptPath, pptxPath, outputDir)
+		hideConsoleWindow(cmd3)
 		output3, err3 := cmd3.CombinedOutput()
 		if err3 != nil {
 			return fmt.Errorf("python run failed: %v (%s) and python3 run failed: %v (%s)", err, string(output), err3, string(output3))
@@ -1074,6 +1076,14 @@ func (a *App) ExportPresentationImages(prezID string) error {
 }
 
 func (a *App) runSlideExportPipeline(prezID string, pptxPath string, outputDir string) {
+	// Emit initial 0% progress immediately to show the user that processing has started!
+	wailsRuntime.EventsEmit(a.ctx, "export-progress", map[string]interface{}{
+		"id":      prezID,
+		"current": 0,
+		"total":   100,
+		"percent": 0,
+	})
+
 	scriptPath, err := findPythonScript()
 	if err != nil {
 		log.Printf("[Export] Failed to find script: %v", err)
@@ -1087,6 +1097,7 @@ func (a *App) runSlideExportPipeline(prezID string, pptxPath string, outputDir s
 	log.Printf("[Export] Launching export pipeline for %s...", prezID)
 	// Try running "python" first
 	cmd := exec.Command("python", scriptPath, pptxPath, outputDir)
+	hideConsoleWindow(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Printf("[Export] Failed to create stdout pipe: %v", err)
@@ -1102,6 +1113,7 @@ func (a *App) runSlideExportPipeline(prezID string, pptxPath string, outputDir s
 		usesPython3 = true
 		// Fallback to "python3"
 		cmd = exec.Command("python3", scriptPath, pptxPath, outputDir)
+		hideConsoleWindow(cmd)
 		stdout, err = cmd.StdoutPipe()
 		if err != nil {
 			log.Printf("[Export] Failed to create stdout pipe for python3: %v", err)

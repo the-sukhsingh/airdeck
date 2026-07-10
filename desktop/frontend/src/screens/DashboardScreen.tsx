@@ -17,8 +17,12 @@ import {
   Play,
   Sun,
   Moon,
+  Loader2,
+  Grid,
+  List,
 } from "lucide-react";
 import { Presentation } from "../types";
+import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
 
 interface DashboardScreenProps {
   library: Presentation[];
@@ -47,6 +51,49 @@ export default function DashboardScreen({
   // Google Slides Form
   const [gSlidesName, setGSlidesName] = useState<string>("");
   const [gSlidesUrl, setGSlidesUrl] = useState<string>("");
+
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    return (localStorage.getItem("viewMode") as "grid" | "list") || "grid";
+  });
+
+  const toggleViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    localStorage.setItem("viewMode", mode);
+  };
+
+  const [exportingProgress, setExportingProgress] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    EventsOn("export-progress", (data: any) => {
+      setExportingProgress((prev) => ({
+        ...prev,
+        [data.id]: data.percent,
+      }));
+    });
+
+    EventsOn("export-complete", (data: any) => {
+      setExportingProgress((prev) => {
+        const next = { ...prev };
+        delete next[data.id];
+        return next;
+      });
+      onRefresh();
+    });
+
+    EventsOn("export-error", (data: any) => {
+      setExportingProgress((prev) => {
+        const o = { ...prev };
+        delete o[data.id];
+        return o;
+      });
+    });
+
+    return () => {
+      EventsOff("export-progress");
+      EventsOff("export-complete");
+      EventsOff("export-error");
+    };
+  }, [onRefresh]);
 
   // Extract unique folder names whenever library updates
   useEffect(() => {
@@ -172,14 +219,13 @@ export default function DashboardScreen({
           </h3>
           <button
             style={{
-              background: currentFolder === "" ? "var(--bg-tertiary)" : "none",
+              background: "none",
               border: "none",
               color: currentFolder === "" ? "var(--text-primary)" : "var(--text-secondary)",
-              fontWeight: currentFolder === "" ? "500" : "400",
+              fontWeight: currentFolder === "" ? "600" : "400",
               textAlign: "left",
               fontSize: "13px",
-              padding: "8px 12px",
-              borderRadius: "var(--radius-medium)",
+              padding: "6px 0",
               cursor: "pointer",
               transition: "all 0.2s ease",
             }}
@@ -190,14 +236,13 @@ export default function DashboardScreen({
 
           <button
             style={{
-              background: currentFolder === "starred" ? "var(--bg-tertiary)" : "none",
+              background: "none",
               border: "none",
               color: currentFolder === "starred" ? "var(--text-primary)" : "var(--text-secondary)",
-              fontWeight: currentFolder === "starred" ? "500" : "400",
+              fontWeight: currentFolder === "starred" ? "600" : "400",
               textAlign: "left",
               fontSize: "13px",
-              padding: "8px 12px",
-              borderRadius: "var(--radius-medium)",
+              padding: "6px 0",
               display: "flex",
               alignItems: "center",
               gap: "8px",
@@ -219,14 +264,13 @@ export default function DashboardScreen({
             <button
               key={folder}
               style={{
-                background: currentFolder === folder ? "var(--bg-tertiary)" : "none",
+                background: "none",
                 border: "none",
                 color: currentFolder === folder ? "var(--text-primary)" : "var(--text-secondary)",
-                fontWeight: currentFolder === folder ? "500" : "400",
+                fontWeight: currentFolder === folder ? "600" : "400",
                 textAlign: "left",
                 fontSize: "13px",
-                padding: "8px 12px",
-                borderRadius: "var(--radius-medium)",
+                padding: "6px 0",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
               }}
@@ -274,6 +318,42 @@ export default function DashboardScreen({
           </div>
 
           <div style={{ display: "flex", gap: "var(--space-md)", alignItems: "center" }}>
+            {/* View Mode Toggle */}
+            <div style={{ display: "flex", gap: "12px", marginRight: "12px" }}>
+              <button
+                onClick={() => toggleViewMode("grid")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: viewMode === "grid" ? "var(--text-primary)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "color 0.2s ease",
+                }}
+                title="Grid View"
+              >
+                <Grid size={16} />
+              </button>
+              <button
+                onClick={() => toggleViewMode("list")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "color 0.2s ease",
+                }}
+                title="List View"
+              >
+                <List size={16} />
+              </button>
+            </div>
+
             {/* Theme Toggle Button */}
             <button
               type="button"
@@ -293,7 +373,7 @@ export default function DashboardScreen({
           </div>
         </div>
 
-        {/* Slides Library Grid */}
+        {/* Slides Library Grid / List Showcase */}
         {filteredLibrary.length === 0 ? (
           <div
             style={{
@@ -329,10 +409,21 @@ export default function DashboardScreen({
               Upload a .pptx file to begin
             </button>
           </div>
-        ) : (
+        ) : viewMode === "grid" ? (
           <div className="library-grid">
             {filteredLibrary.map((p) => (
-              <div className="card" key={p.id}>
+              <div 
+                className="card" 
+                key={p.id}
+                onClick={() => {
+                  if (exportingProgress[p.id] === undefined) {
+                    onPresent(p);
+                  }
+                }}
+                style={{
+                  cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer"
+                }}
+              >
                 <div
                   style={{
                     display: "flex",
@@ -341,7 +432,9 @@ export default function DashboardScreen({
                     gap: "var(--space-sm)",
                   }}
                 >
-                  <span className="badge">{p.source}</span>
+                  <span style={{ fontSize: "9px", letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: "bold" }}>
+                    {p.source}
+                  </span>
                   <button
                     style={{
                       background: "none",
@@ -382,16 +475,43 @@ export default function DashboardScreen({
                   >
                     {p.name}
                   </h3>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-muted)",
-                      marginTop: "4px",
-                      display: "block",
-                    }}
-                  >
-                    {p.totalSlides} slides
-                  </span>
+                  {exportingProgress[p.id] !== undefined ? (
+                    <div style={{ marginTop: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "var(--accent-blue)", fontWeight: "500", display: "flex", gap: "4px", alignItems: "center" }}>
+                        <Loader2 className="animate-spin" size={10} style={{ color: "var(--accent-blue)" }} /> Generating previews... {exportingProgress[p.id]}%
+                      </span>
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "4px",
+                          backgroundColor: "rgba(255, 255, 255, 0.1)",
+                          borderRadius: "2px",
+                          overflow: "hidden",
+                          marginTop: "4px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${exportingProgress[p.id]}%`,
+                            height: "100%",
+                            backgroundColor: "var(--accent-blue)",
+                            transition: "width 0.2s ease",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        marginTop: "4px",
+                        display: "block",
+                      }}
+                    >
+                      {p.totalSlides} slides
+                    </span>
+                  )}
                 </div>
 
                 <div
@@ -399,26 +519,53 @@ export default function DashboardScreen({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    borderTop: "1px solid var(--border-color)",
                     paddingTop: "var(--space-sm)",
                     marginTop: "auto",
                   }}
                 >
-                  <button className="btn btn-small btn-primary" onClick={() => onPresent(p)}>
-                    <Play size={10} /> Present
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (exportingProgress[p.id] === undefined) {
+                        onPresent(p);
+                      }
+                    }}
+                    disabled={exportingProgress[p.id] !== undefined}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: exportingProgress[p.id] !== undefined ? "var(--text-muted)" : "var(--text-primary)",
+                      cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    {exportingProgress[p.id] !== undefined ? (
+                      <>
+                        <Loader2 className="animate-spin" size={10} /> Processing
+                      </>
+                    ) : (
+                      <>
+                        Present →
+                      </>
+                    )}
                   </button>
 
-                  <div style={{ display: "flex", gap: "var(--space-xs)", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "var(--space-md)", alignItems: "center" }}>
                     {/* Move to folder dropdown selector */}
                     <select
+                      onClick={(e) => e.stopPropagation()}
                       style={{
-                        padding: "4px 8px",
+                        padding: "2px 0",
                         fontSize: "11px",
                         width: "auto",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-subtle)",
-                        background: "var(--bg-primary)",
-                        color: "var(--text-secondary)",
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--text-muted)",
                         cursor: "pointer",
                         outline: "none",
                       }}
@@ -439,17 +586,169 @@ export default function DashboardScreen({
                         border: "none",
                         color: "var(--text-muted)",
                         cursor: "pointer",
-                        padding: 4,
+                        padding: 0,
                         display: "flex",
                         alignItems: "center",
                         transition: "color 0.2s ease",
                       }}
-                      onClick={() => handleDelete(p.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(p.id);
+                      }}
                       title="Delete Presentation"
                     >
                       <Trash2 size={12} />
                     </button>
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* List Mode */
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {filteredLibrary.map((p) => (
+              <div 
+                key={p.id}
+                onClick={() => {
+                  if (exportingProgress[p.id] === undefined) {
+                    onPresent(p);
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 16px",
+                  margin: "0 -16px",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.03)",
+                  gap: "24px",
+                  cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer",
+                  borderRadius: "var(--radius-medium)",
+                }}
+                className="list-row"
+              >
+                {/* Star & Name */}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
+                  <button
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: p.isStarred ? "var(--text-primary)" : "var(--text-muted)",
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStar(p.id, p.isStarred);
+                    }}
+                  >
+                    <Star
+                      size={13}
+                      fill={p.isStarred ? "currentColor" : "none"}
+                    />
+                  </button>
+
+                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <h3
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        textTransform: "none",
+                        color: "var(--text-primary)",
+                        margin: 0,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {p.name}
+                    </h3>
+                    {exportingProgress[p.id] !== undefined && (
+                      <span style={{ fontSize: "10px", color: "var(--accent-blue)", fontWeight: "500", display: "flex", gap: "4px", alignItems: "center", marginTop: "2px" }}>
+                        <Loader2 className="animate-spin" size={8} /> Processing... {exportingProgress[p.id]}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Slides & Type badge */}
+                <div style={{ display: "flex", alignItems: "center", gap: "24px", color: "var(--text-secondary)", fontSize: "12px" }}>
+                  <span style={{ fontSize: "9px", letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: "bold" }}>
+                    {p.source}
+                  </span>
+                  <span style={{ color: "var(--text-muted)" }}>
+                    {p.totalSlides} slides
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (exportingProgress[p.id] === undefined) {
+                        onPresent(p);
+                      }
+                    }}
+                    disabled={exportingProgress[p.id] !== undefined}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: exportingProgress[p.id] !== undefined ? "var(--text-muted)" : "var(--text-primary)",
+                      cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      padding: 0,
+                    }}
+                  >
+                    Present →
+                  </button>
+
+                  <select
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      padding: "2px 0",
+                      fontSize: "11px",
+                      width: "auto",
+                      border: "none",
+                      background: "transparent",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                    value={p.folder}
+                    onChange={(e) => handleMoveToFolder(p.id, e.target.value)}
+                  >
+                    <option value="">No Folder</option>
+                    {folders.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "color 0.2s ease",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(p.id);
+                    }}
+                    title="Delete"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               </div>
             ))}
