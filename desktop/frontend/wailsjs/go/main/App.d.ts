@@ -13,6 +13,8 @@ export function DenyPairingRequest():Promise<void>;
 
 export function EndPresentationSession():Promise<void>;
 
+export function ExportPresentationImages(arg1:string):Promise<void>;
+
 export function GetLibrary():Promise<Array<storage.Presentation>>;
 
 export function GetPresentationBytes(arg1:string):Promise<Array<number>>;
@@ -32,6 +34,8 @@ export function LockStorage():Promise<void>;
 export function MovePresentationToFolder(arg1:string,arg2:string):Promise<void>;
 
 export function SaveSettings(arg1:string):Promise<void>;
+
+export function SaveSlideImage(arg1:string,arg2:number,arg3:string):Promise<void>;
 
 export function SelectAndUploadPresentation():Promise<storage.Presentation>;
 

@@ -23,18 +23,29 @@ def export_slides(pptx_path, output_dir):
         
     ppt = None
     try:
-        # Launch PowerPoint in background
+        # Launch PowerPoint in background (headless)
         ppt = win32com.client.Dispatch("PowerPoint.Application")
-        ppt.Visible = True
         
-        # Open presentation
+        # Open presentation. WithWindow=False keeps the application window hidden
         pres = ppt.Presentations.Open(pptx_path, WithWindow=False)
-        # Export all slides as PNG images to the output directory at high resolution (1080p)
-        pres.Export(output_dir, "PNG", 1920, 1080)
+        slide_count = len(pres.Slides)
+        
+        # Export slides one by one to report progress
+        for i in range(1, slide_count + 1):
+            slide = pres.Slides(i)
+            # Save as Slide<index>.PNG (lossless PNG for crisp text rendering)
+            slide_path = os.path.join(output_dir, f"Slide{i}.PNG")
+            slide.Export(slide_path, "PNG", 1920, 1080)
+            
+            # Print progress tokens to stdout
+            print(f"PROGRESS:{i}:{slide_count}")
+            sys.stdout.flush()
+            
         pres.Close()
-        print(f"EXPORT_SUCCESS: {len(os.listdir(output_dir))} slides exported")
+        print(f"EXPORT_SUCCESS: {slide_count} slides exported")
     except Exception as e:
         print(f"EXPORT_ERROR: {str(e)}")
+        sys.stdout.flush()
         sys.exit(1)
     finally:
         if ppt is not None:

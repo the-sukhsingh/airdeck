@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "html2canvas": "^1.4.1",
     "lucide-react": "^1.21.0",
     "pptx-preview": "^1.0.7",
     "qrcode.react": "^4.2.0",

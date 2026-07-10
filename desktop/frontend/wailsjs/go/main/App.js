@@ -22,6 +22,10 @@ export function EndPresentationSession() {
   return window['go']['main']['App']['EndPresentationSession']();
 }
 
+export function ExportPresentationImages(arg1) {
+  return window['go']['main']['App']['ExportPresentationImages'](arg1);
+}
+
 export function GetLibrary() {
   return window['go']['main']['App']['GetLibrary']();
 }
@@ -60,6 +64,10 @@ export function MovePresentationToFolder(arg1, arg2) {
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SaveSlideImage(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveSlideImage'](arg1, arg2, arg3);
 }
 
 export function SelectAndUploadPresentation() {

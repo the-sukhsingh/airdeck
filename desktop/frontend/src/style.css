@@ -387,9 +387,6 @@ input::placeholder {
   height: 100%;
   overflow: hidden !important;
 }
-.pptx-render-container * {
-  overflow: hidden !important;
-}
 .pptx-render-container .slide-view {
   display: flex !important;
   align-items: center !important;
