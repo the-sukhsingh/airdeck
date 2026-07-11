@@ -47,6 +47,8 @@ export function UnlockStorage(arg1:string):Promise<boolean>;
 
 export function UpdateCurrentSlide(arg1:number):Promise<void>;
 
+export function UploadPDF(arg1:string):Promise<storage.Presentation>;
+
 export function UploadPresentation(arg1:string):Promise<storage.Presentation>;
 
 export function WriteDebugFile(arg1:string,arg2:string):Promise<void>;

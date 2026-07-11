@@ -129,17 +129,21 @@ func (w *WebRTCManager) handleSignaling(writer http.ResponseWriter, req *http.Re
 	}
 
 	w.mutex.Lock()
-	w.wsConn = conn
+	if w.wsConn == nil {
+		w.wsConn = conn
+	}
 	w.mutex.Unlock()
 
 	defer func() {
 		w.mutex.Lock()
 		wasConnected := w.connected
-		w.wsConn = nil
-		w.connected = false
+		if w.wsConn == conn {
+			w.wsConn = nil
+			w.connected = false
+		}
 		w.mutex.Unlock()
 
-		if wasConnected && w.onStateChange != nil {
+		if wasConnected && w.wsConn == nil && w.onStateChange != nil {
 			w.onStateChange("disconnected")
 		}
 		conn.Close()

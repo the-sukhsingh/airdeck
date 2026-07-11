@@ -21,7 +21,7 @@ type SlideData struct {
 type Presentation struct {
 	ID              string      `json:"id"`
 	Name            string      `json:"name"`
-	Source          string      `json:"source"` // "pptx" or "google"
+	Source          string      `json:"source"` // "pptx", "pdf", or "google"
 	FilePath        string      `json:"filePath,omitempty"`
 	GoogleSlidesURL string      `json:"googleSlidesUrl,omitempty"`
 	IsStarred       bool        `json:"isStarred"`
@@ -186,7 +186,7 @@ func (s *StorageManager) RemovePresentation(id string) error {
 
 	// Delete file and images folder if they exist
 	p := s.db.Presentations[index]
-	if p.Source == "pptx" && p.FilePath != "" {
+	if (p.Source == "pptx" || p.Source == "pdf") && p.FilePath != "" {
 		os.Remove(p.FilePath)
 		imagesDir := filepath.Join(filepath.Dir(p.FilePath), p.ID+"_images")
 		os.RemoveAll(imagesDir)

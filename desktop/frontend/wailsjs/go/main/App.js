@@ -90,6 +90,10 @@ export function UpdateCurrentSlide(arg1) {
   return window['go']['main']['App']['UpdateCurrentSlide'](arg1);
 }
 
+export function UploadPDF(arg1) {
+  return window['go']['main']['App']['UploadPDF'](arg1);
+}
+
 export function UploadPresentation(arg1) {
   return window['go']['main']['App']['UploadPresentation'](arg1);
 }

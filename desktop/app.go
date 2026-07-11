@@ -8,6 +8,7 @@ import (
 	"desktop/internal/ble"
 	"desktop/internal/crypto"
 	"desktop/internal/discovery"
+	"desktop/internal/pdf"
 	"desktop/internal/pptx"
 	"desktop/internal/storage"
 	"desktop/internal/webrtc"
@@ -46,6 +47,7 @@ type ControlMessage struct {
 	Index  int     `json:"index,omitempty"` // For "goto"
 	X      float64 `json:"x,omitempty"`     // For "laser" / "draw" (0.0 to 1.0)
 	Y      float64 `json:"y,omitempty"`     // For "laser" / "draw" (0.0 to 1.0)
+	Scale  float64 `json:"scale,omitempty"` // For "zoom" (1.0 to 4.0)
 	Tool   string  `json:"tool,omitempty"`  // "pen", "highlighter", "eraser"
 	Color  string  `json:"color,omitempty"` // Color for drawing
 	Tab    string  `json:"tab,omitempty"`    // Active mobile tab ("laser", "control", "slides")
@@ -282,9 +284,10 @@ func (a *App) SelectAndUploadPresentation() (storage.Presentation, error) {
 	}
 
 	filePath, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
-		Title: "Select PowerPoint File",
+		Title: "Select Presentation File",
 		Filters: []wailsRuntime.FileFilter{
 			{DisplayName: "PowerPoint Presentations (*.pptx)", Pattern: "*.pptx"},
+			{DisplayName: "PDF Documents (*.pdf)", Pattern: "*.pdf"},
 		},
 	})
 	if err != nil {
@@ -294,7 +297,141 @@ func (a *App) SelectAndUploadPresentation() (storage.Presentation, error) {
 		return storage.Presentation{}, errors.New("no file selected")
 	}
 
+	// Detect file type and route to appropriate upload function
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if ext == ".pdf" {
+		return a.UploadPDF(filePath)
+	}
 	return a.UploadPresentation(filePath)
+}
+
+// UploadPDF parses and saves a PDF file to the library database
+func (a *App) UploadPDF(filePath string) (storage.Presentation, error) {
+	if !a.storage.IsUnlocked() {
+		return storage.Presentation{}, errors.New("database locked")
+	}
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to get user config dir: %w", err)
+	}
+	appDir := filepath.Join(configDir, "ppt-dapp", "presentations")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to create presentations folder: %w", err)
+	}
+
+	id := uuid.New().String()
+	localFilePath := filepath.Join(appDir, id+".pdf")
+
+	// Copy content
+	srcFile, err := os.Open(filePath)
+	if err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(localFilePath)
+	if err != nil {
+		return storage.Presentation{}, fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		os.Remove(localFilePath)
+		return storage.Presentation{}, fmt.Errorf("failed to copy file: %w", err)
+	}
+
+	// Parse PDF to get page count
+	slides, err := pdf.ParsePDF(localFilePath)
+	if err != nil {
+		os.Remove(localFilePath)
+		return storage.Presentation{}, fmt.Errorf("PDF parsing failed: %w", err)
+	}
+
+	fileName := filepath.Base(filePath)
+
+	p := storage.Presentation{
+		ID:          id,
+		Name:        fileName,
+		Source:      "pdf",
+		FilePath:    localFilePath,
+		IsStarred:   false,
+		Folder:      "",
+		TotalSlides: len(slides),
+		Slides:      slides,
+		CreatedAt:   time.Now().UnixNano() / int64(time.Millisecond),
+	}
+
+	err = a.storage.AddPresentation(p)
+	if err != nil {
+		os.Remove(localFilePath)
+		return storage.Presentation{}, err
+	}
+
+	// Trigger PDF page images export in background
+	imagesDir := filepath.Join(appDir, id+"_images")
+	go func() {
+		a.runPdfExportPipeline(id, localFilePath, imagesDir)
+	}()
+
+	return p, nil
+}
+
+// runPdfExportPipeline renders all PDF pages to images
+func (a *App) runPdfExportPipeline(id string, pdfPath string, imagesDir string) {
+	log.Printf("[PDF Export] Starting export for %s to %s", id, imagesDir)
+
+	slides, err := pdf.ParsePDF(pdfPath)
+	if err != nil {
+		log.Printf("[PDF Export] Failed to get page count: %v", err)
+		wailsRuntime.EventsEmit(a.ctx, "export-error", map[string]interface{}{
+			"id":    id,
+			"error": err.Error(),
+		})
+		return
+	}
+	totalPages := len(slides)
+
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		log.Printf("[PDF Export] Failed to create images dir: %v", err)
+		return
+	}
+
+	for pageNum := 1; pageNum <= totalPages; pageNum++ {
+		percent := int((float64(pageNum) / float64(totalPages)) * 100)
+		wailsRuntime.EventsEmit(a.ctx, "export-progress", map[string]interface{}{
+			"id":      id,
+			"percent": percent,
+		})
+
+		targetPath := filepath.Join(imagesDir, fmt.Sprintf("slide_%d.png", pageNum))
+
+		// Skip if already rendered
+		if _, err := os.Stat(targetPath); err == nil {
+			log.Printf("[PDF Export] Page %d already exists, skipping", pageNum)
+			continue
+		}
+
+		imgPath, err := pdf.RenderPDFPageToImage(pdfPath, pageNum, imagesDir, fmt.Sprintf("page_%d", pageNum))
+		if err != nil {
+			log.Printf("[PDF Export] Failed to render page %d: %v", pageNum, err)
+			continue
+		}
+
+		// Normalize to slide_N.png if render gave a different name
+		if imgPath != targetPath {
+			if err := os.Rename(imgPath, targetPath); err != nil {
+				log.Printf("[PDF Export] Failed to rename %s -> %s: %v", imgPath, targetPath, err)
+			}
+		}
+
+		log.Printf("[PDF Export] Rendered page %d/%d", pageNum, totalPages)
+	}
+
+	log.Printf("[PDF Export] Export complete for %s", id)
+	wailsRuntime.EventsEmit(a.ctx, "export-complete", map[string]interface{}{
+		"id": id,
+	})
 }
 
 
@@ -350,7 +487,7 @@ func fetchGoogleSlidesMetadata(url string) (string, int) {
 	return title, totalSlides
 }
 
-// AddGoogleSlidesLink saves a Google Slide URL to the library
+// AddGoogleSlidesLink saves a Google Slide URL to the library and attempts offline PDF caching
 func (a *App) AddGoogleSlidesLink(name string, url string) (storage.Presentation, error) {
 	if !a.storage.IsUnlocked() {
 		return storage.Presentation{}, errors.New("database locked")
@@ -360,37 +497,113 @@ func (a *App) AddGoogleSlidesLink(name string, url string) (storage.Presentation
 		return storage.Presentation{}, errors.New("URL cannot be empty")
 	}
 
-	extTitle, extSlides := fetchGoogleSlidesMetadata(url)
+	var localFilePath string
+	var slides []storage.SlideData
+	var totalSlides int
+	id := uuid.New().String()
+
+	// 1. Attempt to download the presentation as a PDF for offline caching
+	// We extract standard sharing slide ID: /d/{fileID}
+	// Note: We make sure we don't match "/d/e/" which is the prefix for published slides!
+	var fileID string
+	if !strings.Contains(url, "/d/e/") {
+		re := regexp.MustCompile(`\/d\/([a-zA-Z0-9-_]+)`)
+		matches := re.FindStringSubmatch(url)
+		if len(matches) > 1 {
+			fileID = matches[1]
+		}
+	}
+
+	if fileID != "" {
+		downloadURL := fmt.Sprintf("https://docs.google.com/presentation/d/%s/export/pdf", fileID)
+		
+		log.Printf("[GoogleSlides] Attempting to download offline PDF from: %s", downloadURL)
+		client := &http.Client{Timeout: 20 * time.Second}
+		resp, err := client.Get(downloadURL)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				configDir, err := os.UserConfigDir()
+				if err == nil {
+					appDir := filepath.Join(configDir, "ppt-dapp", "presentations")
+					_ = os.MkdirAll(appDir, 0755)
+					
+					pdfPath := filepath.Join(appDir, id+".pdf")
+					out, err := os.Create(pdfPath)
+					if err == nil {
+						_, err = io.Copy(out, resp.Body)
+						out.Close()
+						if err == nil {
+							// Parse downloaded PDF to see page layouts & page count
+							pdfSlides, err := pdf.ParsePDF(pdfPath)
+							if err == nil && len(pdfSlides) > 0 {
+								localFilePath = pdfPath
+								slides = pdfSlides
+								totalSlides = len(pdfSlides)
+								log.Printf("[GoogleSlides] Offline PDF cached successfully. Pages: %d", totalSlides)
+							} else {
+								log.Printf("[GoogleSlides] Failed to parse downloaded PDF: %v", err)
+								os.Remove(pdfPath)
+							}
+						} else {
+							os.Remove(pdfPath)
+						}
+					}
+				}
+			} else {
+				log.Printf("[GoogleSlides] Download request failed with HTTP status: %d", resp.StatusCode)
+			}
+		} else {
+			log.Printf("[GoogleSlides] Download HTTP request failed: %v", err)
+		}
+	}
 
 	finalName := name
-	if finalName == "" {
-		if extTitle != "" {
-			finalName = extTitle
-		} else {
-			finalName = "Google Slides"
+
+	// 2. Graceful fallback if download was not possible (online-only mode)
+	if localFilePath == "" {
+		log.Println("[GoogleSlides] Offline caching failed or not supported for this URL. Falling back to online-only metadata fetching.")
+		extTitle, extSlides := fetchGoogleSlidesMetadata(url)
+
+		if finalName == "" {
+			if extTitle != "" {
+				finalName = extTitle
+			} else {
+				finalName = "Google Slides"
+			}
+		}
+
+		totalSlides = 100
+		if extSlides > 0 {
+			totalSlides = extSlides
+		}
+
+		slides = make([]storage.SlideData, totalSlides)
+		for i := 0; i < totalSlides; i++ {
+			slides[i] = storage.SlideData{
+				Index: i + 1,
+				Title: fmt.Sprintf("Slide %d", i+1),
+				Notes: "",
+			}
+		}
+	} else {
+		// Use name if user supplied it, otherwise scrape the title from presentation web page
+		if finalName == "" {
+			extTitle, _ := fetchGoogleSlidesMetadata(url)
+			if extTitle != "" {
+				finalName = extTitle
+			} else {
+				finalName = "Google Slides"
+			}
 		}
 	}
 
-	totalSlides := 100
-	if extSlides > 0 {
-		totalSlides = extSlides
-	}
-
-	slides := make([]storage.SlideData, totalSlides)
-	for i := 0; i < totalSlides; i++ {
-		slides[i] = storage.SlideData{
-			Index: i + 1,
-			Title: fmt.Sprintf("Slide %d", i+1),
-			Notes: "",
-		}
-	}
-
-	id := uuid.New().String()
 	p := storage.Presentation{
 		ID:              id,
 		Name:            finalName,
 		Source:          "google",
 		GoogleSlidesURL: url,
+		FilePath:        localFilePath, // empty if online-only
 		IsStarred:       false,
 		Folder:          "",
 		TotalSlides:     totalSlides,
@@ -399,7 +612,24 @@ func (a *App) AddGoogleSlidesLink(name string, url string) (storage.Presentation
 	}
 
 	err := a.storage.AddPresentation(p)
-	return p, err
+	if err != nil {
+		if localFilePath != "" {
+			os.Remove(localFilePath)
+		}
+		return storage.Presentation{}, err
+	}
+
+	// 3. Trigger PDF-to-image conversion in the background if downloaded
+	if localFilePath != "" {
+		configDir, _ := os.UserConfigDir()
+		appDir := filepath.Join(configDir, "ppt-dapp", "presentations")
+		imagesDir := filepath.Join(appDir, id+"_images")
+		go func() {
+			a.runPdfExportPipeline(id, localFilePath, imagesDir)
+		}()
+	}
+
+	return p, nil
 }
 
 // GetPresentationBytes reads the raw file bytes for a PPTX presentation from disk
@@ -768,6 +998,12 @@ func (a *App) handleDecryptedPayload(payload []byte) {
 		wailsRuntime.EventsEmit(a.ctx, "draw-clear", nil)
 	case "fullscreen":
 		wailsRuntime.EventsEmit(a.ctx, "toggle-fullscreen", nil)
+	case "zoom":
+		wailsRuntime.EventsEmit(a.ctx, "zoom", map[string]interface{}{
+			"scale": cmd.Scale,
+			"x":     cmd.X,
+			"y":     cmd.Y,
+		})
 	case "request-slides":
 		a.sendSlidesUpdate()
 	case "set-active-tab":
@@ -817,7 +1053,7 @@ func (a *App) sendSlidesUpdate() {
 	go func() {
 		// 1. Fetch slide image for WebRTC (only needed for Wifi when the mobile is actively on the laser tab)
 		var slideImage string
-		if activeClientTab == "laser" && prezSource == "pptx" {
+		if activeClientTab == "laser" && (prezSource == "pptx" || prezSource == "pdf") {
 			img, err := a.GetSlideImageCompressed(prezID, slideIndex)
 			if err == nil {
 				slideImage = img
@@ -1058,8 +1294,8 @@ func (a *App) ExportPresentationImages(prezID string) error {
 		}
 	}
 
-	if prez.Source != "pptx" {
-		return errors.New("presentation does not have local PPTX file")
+	if prez.Source != "pptx" && prez.Source != "pdf" && (prez.Source != "google" || prez.FilePath == "") {
+		return errors.New("presentation does not have a local file for export")
 	}
 
 	configDir, err := os.UserConfigDir()
@@ -1069,7 +1305,11 @@ func (a *App) ExportPresentationImages(prezID string) error {
 	imagesDir := filepath.Join(configDir, "ppt-dapp", "presentations", prez.ID+"_images")
 
 	go func() {
-		a.runSlideExportPipeline(prez.ID, prez.FilePath, imagesDir)
+		if prez.Source == "pdf" || prez.Source == "google" {
+			a.runPdfExportPipeline(prez.ID, prez.FilePath, imagesDir)
+		} else {
+			a.runSlideExportPipeline(prez.ID, prez.FilePath, imagesDir)
+		}
 	}()
 
 	return nil
@@ -1184,25 +1424,36 @@ func (a *App) GetSlideImage(prezID string, slideIndex int) (string, error) {
 		return "", err
 	}
 
-	// Slide file name matches "Slide<slideIndex>.PNG"
-	imagePath := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.PNG", slideIndex))
+	imagesDir := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images")
 
-	// Check if file exists
-	if _, err := os.Stat(imagePath); err != nil {
-		// Try lowercase file extension just in case
-		imagePathLower := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.png", slideIndex))
-		if _, err := os.Stat(imagePathLower); err != nil {
-			return "", errors.New("slide image not ready or not found")
-		}
-		imagePath = imagePathLower
+	// Try all known naming conventions in order:
+	// 1. PPTX export: "Slide<N>.PNG" (uppercase, from Python/LibreOffice)
+	// 2. PPTX export: "Slide<N>.png" (lowercase fallback)
+	// 3. PDF export:  "slide_<N>.png" (from pdf parser)
+	candidates := []string{
+		filepath.Join(imagesDir, fmt.Sprintf("Slide%d.PNG", slideIndex)),
+		filepath.Join(imagesDir, fmt.Sprintf("Slide%d.png", slideIndex)),
+		filepath.Join(imagesDir, fmt.Sprintf("slide_%d.png", slideIndex)),
 	}
 
-	bytes, err := os.ReadFile(imagePath)
+	imagePath := ""
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			imagePath = candidate
+			break
+		}
+	}
+
+	if imagePath == "" {
+		return "", errors.New("slide image not ready or not found")
+	}
+
+	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		return "", err
 	}
 
-	return base64.StdEncoding.EncodeToString(bytes), nil
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 func resizeImage(img image.Image, maxWidth int) image.Image {
@@ -1234,13 +1485,23 @@ func (a *App) GetSlideImageCompressed(prezID string, slideIndex int) (string, er
 		return "", err
 	}
 
-	imagePath := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.PNG", slideIndex))
-	if _, err := os.Stat(imagePath); err != nil {
-		imagePathLower := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images", fmt.Sprintf("Slide%d.png", slideIndex))
-		if _, err := os.Stat(imagePathLower); err != nil {
-			return "", errors.New("slide image not ready or not found")
+	imagesDir := filepath.Join(configDir, "ppt-dapp", "presentations", prezID+"_images")
+
+	candidates := []string{
+		filepath.Join(imagesDir, fmt.Sprintf("Slide%d.PNG", slideIndex)),
+		filepath.Join(imagesDir, fmt.Sprintf("Slide%d.png", slideIndex)),
+		filepath.Join(imagesDir, fmt.Sprintf("slide_%d.png", slideIndex)),
+	}
+
+	imagePath := ""
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			imagePath = candidate
+			break
 		}
-		imagePath = imagePathLower
+	}
+	if imagePath == "" {
+		return "", errors.New("slide image not ready or not found")
 	}
 
 	pngFile, err := os.Open(imagePath)

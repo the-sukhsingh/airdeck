@@ -282,51 +282,7 @@ input::placeholder {
   transition: background-color 0.2s ease;
 }
 
-/* Library and List Views */
-.library-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-lg);
-}
 
-.card {
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-medium);
-  padding: var(--space-md);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 150px;
-  cursor: pointer;
-  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-bottom-color 0.25s ease;
-}
-
-.card:hover {
-  background-color: rgba(255, 255, 255, 0.015);
-  border-bottom-color: rgba(255, 255, 255, 0.1);
-}
-
-[data-theme="light"] .card:hover {
-  background-color: rgba(0, 0, 0, 0.01);
-}
-
-.card.selected {
-  border-bottom-color: var(--text-primary);
-}
-
-.list-row {
-  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.list-row:hover {
-  background-color: rgba(255, 255, 255, 0.015);
-}
-
-[data-theme="light"] .list-row:hover {
-  background-color: rgba(0, 0, 0, 0.01);
-}
 
 /* Modal and Prompts */
 .modal-overlay {
@@ -418,4 +374,269 @@ input::placeholder {
 .pptx-render-container .pptx-preview-wrapper-next,
 .pptx-render-container .pptx-preview-wrapper-pagination {
   display: none !important;
+}
+
+.theme-button{
+  all: unset;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Library Table Styling */
+.library-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-large);
+  background-color: var(--bg-secondary);
+  box-shadow: 0 4px 6px -1px var(--shadow-subtle), 0 2px 4px -1px var(--shadow-subtle);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.library-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.library-table th {
+  padding: 14px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  background-color: rgba(0, 0, 0, 0.02);
+  user-select: none;
+}
+
+[data-theme="dark"] .library-table th {
+  background-color: rgba(255, 255, 255, 0.01);
+}
+
+.library-table td {
+  padding: 16px 16px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.library-table tr:last-child td {
+  border-bottom: none;
+}
+
+.library-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.library-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+[data-theme="dark"] .library-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+/* Star Button */
+.btn-star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 8px;
+  border-radius: var(--radius-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-star.starred {
+  color: #eab308 !important;
+}
+
+.btn-star:hover {
+  color: #eab308;
+  background-color: rgba(234, 179, 8, 0.08);
+}
+
+/* Source badge styles */
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--radius-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+[data-theme="light"] .badge-pdf {
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+[data-theme="dark"] .badge-pdf {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+[data-theme="light"] .badge-google {
+  background-color: rgba(59, 130, 246, 0.08);
+  color: #2563eb;
+}
+[data-theme="dark"] .badge-google {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+[data-theme="light"] .badge-pptx {
+  background-color: rgba(249, 115, 22, 0.08);
+  color: #ea580c;
+}
+[data-theme="dark"] .badge-pptx {
+  background-color: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+/* Custom Folder Dropdown styling */
+.folder-select-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-medium);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 110px;
+  text-align: left;
+}
+
+.folder-select-btn:hover {
+  border-color: var(--border-color-focus);
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+[data-theme="dark"] .folder-select-btn:hover {
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background: transparent;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  min-width: 140px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-medium);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 11;
+  animation: fadeIn 0.12s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-item {
+  background: none;
+  border: none;
+  border-radius: var(--radius-subtle);
+  padding: 6px 10px;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.dropdown-item:hover {
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.025);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.035);
+}
+
+.dropdown-item.active {
+  color: var(--text-primary);
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.035);
+}
+
+[data-theme="dark"] .dropdown-item.active {
+  background-color: rgba(255, 255, 255, 0.055);
+}
+
+/* Present Button Cell Actions */
+.btn-present {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 14px;
+  border-radius: var(--radius-medium);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-present:hover:not(:disabled) {
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+.btn-present:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Delete Button */
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-delete:hover {
+  color: var(--accent-red);
+  background-color: rgba(239, 68, 68, 0.08);
 }

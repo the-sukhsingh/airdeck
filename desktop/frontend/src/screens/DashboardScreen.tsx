@@ -18,8 +18,8 @@ import {
   Sun,
   Moon,
   Loader2,
-  Grid,
-  List,
+  FileText,
+  ChevronDown,
 } from "lucide-react";
 import { Presentation } from "../types";
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
@@ -47,19 +47,13 @@ export default function DashboardScreen({
   const [newFolderName, setNewFolderName] = useState<string>("");
   const [showAddFolderModal, setShowAddFolderModal] = useState<boolean>(false);
   const [showGoogleLinkModal, setShowGoogleLinkModal] = useState<boolean>(false);
+  const [activeFolderDropdown, setActiveFolderDropdown] = useState<string | null>(null);
 
   // Google Slides Form
   const [gSlidesName, setGSlidesName] = useState<string>("");
   const [gSlidesUrl, setGSlidesUrl] = useState<string>("");
 
-  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
-    return (localStorage.getItem("viewMode") as "grid" | "list") || "grid";
-  });
 
-  const toggleViewMode = (mode: "grid" | "list") => {
-    setViewMode(mode);
-    localStorage.setItem("viewMode", mode);
-  };
 
   const [exportingProgress, setExportingProgress] = useState<Record<string, number>>({});
 
@@ -183,6 +177,22 @@ export default function DashboardScreen({
     if (currentFolder === "starred") return p.isStarred;
     return p.folder === currentFolder;
   });
+
+  const getSourceBadge = (source: string) => {
+    switch (source) {
+      case "pdf":
+        return { label: "PDF", icon: <FileText size={11} />, className: "badge-pdf" };
+      case "google":
+        return { label: "Google Slides", icon: <Link2 size={11} />, className: "badge-google" };
+      default:
+        return { label: "PPTX", icon: <Tv size={11} />, className: "badge-pptx" };
+    }
+  };
+
+  const getSlideLabel = (source: string, totalSlides: number) =>
+    source === "pdf"
+      ? `${totalSlides} page${totalSlides !== 1 ? "s" : ""}`
+      : `${totalSlides} slide${totalSlides !== 1 ? "s" : ""}`;
 
   return (
     <div className="container">
@@ -318,46 +328,12 @@ export default function DashboardScreen({
           </div>
 
           <div style={{ display: "flex", gap: "var(--space-md)", alignItems: "center" }}>
-            {/* View Mode Toggle */}
-            <div style={{ display: "flex", gap: "12px", marginRight: "12px" }}>
-              <button
-                onClick={() => toggleViewMode("grid")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: viewMode === "grid" ? "var(--text-primary)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  padding: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  transition: "color 0.2s ease",
-                }}
-                title="Grid View"
-              >
-                <Grid size={16} />
-              </button>
-              <button
-                onClick={() => toggleViewMode("list")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  padding: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  transition: "color 0.2s ease",
-                }}
-                title="List View"
-              >
-                <List size={16} />
-              </button>
-            </div>
+
 
             {/* Theme Toggle Button */}
             <button
               type="button"
-              className="btn-icon"
+              className="theme-button"
               onClick={toggleTheme}
               title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
             >
@@ -365,7 +341,7 @@ export default function DashboardScreen({
             </button>
 
             <button className="btn btn-primary" onClick={handleUpload}>
-              <Upload size={14} /> Upload PPTX
+              <Upload size={14} /> Upload PPTX / PDF
             </button>
             <button className="btn" onClick={() => setShowGoogleLinkModal(true)}>
               <Link2 size={14} /> Link Google Slides
@@ -406,352 +382,177 @@ export default function DashboardScreen({
               No presentations found in this folder.
             </p>
             <button className="btn btn-small" onClick={handleUpload}>
-              Upload a .pptx file to begin
+              Upload a .pptx or .pdf file to begin
             </button>
           </div>
-        ) : viewMode === "grid" ? (
-          <div className="library-grid">
-            {filteredLibrary.map((p) => (
-              <div 
-                className="card" 
-                key={p.id}
-                onClick={() => {
-                  if (exportingProgress[p.id] === undefined) {
-                    onPresent(p);
-                  }
-                }}
-                style={{
-                  cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer"
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: "var(--space-sm)",
-                  }}
-                >
-                  <span style={{ fontSize: "9px", letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: "bold" }}>
-                    {p.source}
-                  </span>
-                  <button
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: p.isStarred ? "var(--text-primary)" : "var(--text-muted)",
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "color 0.2s ease",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStar(p.id, p.isStarred);
-                    }}
-                  >
-                    <Star
-                      size={14}
-                      fill={p.isStarred ? "currentColor" : "none"}
-                      style={{ color: "currentColor" }}
-                    />
-                  </button>
-                </div>
-
-                <div style={{ margin: "var(--space-sm) 0" }}>
-                  <h3
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      textTransform: "none",
-                      color: "var(--text-primary)",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      lineHeight: "1.4",
-                    }}
-                  >
-                    {p.name}
-                  </h3>
-                  {exportingProgress[p.id] !== undefined ? (
-                    <div style={{ marginTop: "8px" }}>
-                      <span style={{ fontSize: "10px", color: "var(--accent-blue)", fontWeight: "500", display: "flex", gap: "4px", alignItems: "center" }}>
-                        <Loader2 className="animate-spin" size={10} style={{ color: "var(--accent-blue)" }} /> Generating previews... {exportingProgress[p.id]}%
-                      </span>
-                      <div
-                        style={{
-                          width: "100%",
-                          height: "4px",
-                          backgroundColor: "rgba(255, 255, 255, 0.1)",
-                          borderRadius: "2px",
-                          overflow: "hidden",
-                          marginTop: "4px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${exportingProgress[p.id]}%`,
-                            height: "100%",
-                            backgroundColor: "var(--accent-blue)",
-                            transition: "width 0.2s ease",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-muted)",
-                        marginTop: "4px",
-                        display: "block",
-                      }}
-                    >
-                      {p.totalSlides} slides
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingTop: "var(--space-sm)",
-                    marginTop: "auto",
-                  }}
-                >
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (exportingProgress[p.id] === undefined) {
-                        onPresent(p);
-                      }
-                    }}
-                    disabled={exportingProgress[p.id] !== undefined}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: exportingProgress[p.id] !== undefined ? "var(--text-muted)" : "var(--text-primary)",
-                      cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    {exportingProgress[p.id] !== undefined ? (
-                      <>
-                        <Loader2 className="animate-spin" size={10} /> Processing
-                      </>
-                    ) : (
-                      <>
-                        Present →
-                      </>
-                    )}
-                  </button>
-
-                  <div style={{ display: "flex", gap: "var(--space-md)", alignItems: "center" }}>
-                    {/* Move to folder dropdown selector */}
-                    <select
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        padding: "2px 0",
-                        fontSize: "11px",
-                        width: "auto",
-                        border: "none",
-                        background: "transparent",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                        outline: "none",
-                      }}
-                      value={p.folder}
-                      onChange={(e) => handleMoveToFolder(p.id, e.target.value)}
-                    >
-                      <option value="">No Folder</option>
-                      {folders.map((f) => (
-                        <option key={f} value={f}>
-                          {f}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        transition: "color 0.2s ease",
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(p.id);
-                      }}
-                      title="Delete Presentation"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         ) : (
-          /* List Mode */
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {filteredLibrary.map((p) => (
-              <div 
-                key={p.id}
-                onClick={() => {
-                  if (exportingProgress[p.id] === undefined) {
-                    onPresent(p);
-                  }
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  margin: "0 -16px",
-                  borderBottom: "1px solid rgba(255, 255, 255, 0.03)",
-                  gap: "24px",
-                  cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer",
-                  borderRadius: "var(--radius-medium)",
-                }}
-                className="list-row"
-              >
-                {/* Star & Name */}
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
-                  <button
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: p.isStarred ? "var(--text-primary)" : "var(--text-muted)",
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStar(p.id, p.isStarred);
-                    }}
-                  >
-                    <Star
-                      size={13}
-                      fill={p.isStarred ? "currentColor" : "none"}
-                    />
-                  </button>
+          <div className="library-table-container">
+            <table className="library-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "48px", textAlign: "center" }}></th> {/* Star */}
+                  <th>Name</th>
+                  <th style={{ width: "160px" }}>Source</th>
+                  <th style={{ width: "120px" }}>Slides</th>
+                  <th style={{ width: "180px" }}>Folder</th>
+                  <th style={{ width: "180px", textAlign: "right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLibrary.map((p) => {
+                  const badge = getSourceBadge(p.source);
+                  const isProcessing = exportingProgress[p.id] !== undefined;
 
-                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    <h3
+                  return (
+                    <tr 
+                      key={p.id}
                       style={{
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        textTransform: "none",
-                        color: "var(--text-primary)",
-                        margin: 0,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        cursor: isProcessing ? "not-allowed" : "pointer"
+                      }}
+                      onClick={() => {
+                        if (!isProcessing) {
+                          onPresent(p);
+                        }
                       }}
                     >
-                      {p.name}
-                    </h3>
-                    {exportingProgress[p.id] !== undefined && (
-                      <span style={{ fontSize: "10px", color: "var(--accent-blue)", fontWeight: "500", display: "flex", gap: "4px", alignItems: "center", marginTop: "2px" }}>
-                        <Loader2 className="animate-spin" size={8} /> Processing... {exportingProgress[p.id]}%
-                      </span>
-                    )}
-                  </div>
-                </div>
+                      {/* Star Cell */}
+                      <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className={`btn-star ${p.isStarred ? "starred" : ""}`}
+                          onClick={() => handleStar(p.id, p.isStarred)}
+                          title={p.isStarred ? "Unstar presentation" : "Star presentation"}
+                        >
+                          <Star
+                            size={16}
+                            fill={p.isStarred ? "currentColor" : "none"}
+                          />
+                        </button>
+                      </td>
 
-                {/* Slides & Type badge */}
-                <div style={{ display: "flex", alignItems: "center", gap: "24px", color: "var(--text-secondary)", fontSize: "12px" }}>
-                  <span style={{ fontSize: "9px", letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: "bold" }}>
-                    {p.source}
-                  </span>
-                  <span style={{ color: "var(--text-muted)" }}>
-                    {p.totalSlides} slides
-                  </span>
-                </div>
+                      {/* Name Cell */}
+                      <td>
+                        <div className="prez-name-cell">
+                          <span className="prez-name">{p.name}</span>
+                          {isProcessing && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "240px", marginTop: "4px" }}>
+                              <span style={{ fontSize: "10px", color: "var(--accent-blue)", fontWeight: "500", display: "flex", gap: "6px", alignItems: "center" }}>
+                                <Loader2 className="animate-spin" size={10} style={{ color: "var(--accent-blue)" }} /> 
+                                Generating previews... {exportingProgress[p.id]}%
+                              </span>
+                              <div
+                                style={{
+                                  width: "100%",
+                                  height: "4px",
+                                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                                  borderRadius: "2px",
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${exportingProgress[p.id]}%`,
+                                    height: "100%",
+                                    backgroundColor: "var(--accent-blue)",
+                                    transition: "width 0.2s ease",
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
 
-                {/* Actions */}
-                <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (exportingProgress[p.id] === undefined) {
-                        onPresent(p);
-                      }
-                    }}
-                    disabled={exportingProgress[p.id] !== undefined}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: exportingProgress[p.id] !== undefined ? "var(--text-muted)" : "var(--text-primary)",
-                      cursor: exportingProgress[p.id] !== undefined ? "not-allowed" : "pointer",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      padding: 0,
-                    }}
-                  >
-                    Present →
-                  </button>
+                      {/* Source badge Cell */}
+                      <td>
+                        <span className={`source-badge ${badge.className}`}>
+                          {badge.icon}
+                          {badge.label}
+                        </span>
+                      </td>
 
-                  <select
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      padding: "2px 0",
-                      fontSize: "11px",
-                      width: "auto",
-                      border: "none",
-                      background: "transparent",
-                      color: "var(--text-muted)",
-                      cursor: "pointer",
-                      outline: "none",
-                    }}
-                    value={p.folder}
-                    onChange={(e) => handleMoveToFolder(p.id, e.target.value)}
-                  >
-                    <option value="">No Folder</option>
-                    {folders.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
+                      {/* Slides count Cell */}
+                      <td style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
+                        {getSlideLabel(p.source, p.totalSlides)}
+                      </td>
 
-                  <button
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--text-muted)",
-                      cursor: "pointer",
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "color 0.2s ease",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(p.id);
-                    }}
-                    title="Delete"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
+                      {/* Folder selection Cell */}
+                      <td onClick={(e) => e.stopPropagation()} style={{ position: "relative" }}>
+                        <button
+                          className="folder-select-btn"
+                          onClick={() => setActiveFolderDropdown(activeFolderDropdown === p.id ? null : p.id)}
+                          title="Move to folder"
+                        >
+                          <span>{p.folder || "No Folder"}</span>
+                          <ChevronDown size={12} style={{ opacity: 0.7 }} />
+                        </button>
+                        
+                        {activeFolderDropdown === p.id && (
+                          <>
+                            <div 
+                              className="dropdown-backdrop" 
+                              onClick={() => setActiveFolderDropdown(null)} 
+                            />
+                            <div className="dropdown-menu">
+                              <button 
+                                className={`dropdown-item ${!p.folder ? "active" : ""}`}
+                                onClick={() => {
+                                  handleMoveToFolder(p.id, "");
+                                  setActiveFolderDropdown(null);
+                                }}
+                              >
+                                No Folder
+                              </button>
+                              {folders.map((f) => (
+                                <button
+                                  key={f}
+                                  className={`dropdown-item ${p.folder === f ? "active" : ""}`}
+                                  onClick={() => {
+                                    handleMoveToFolder(p.id, f);
+                                    setActiveFolderDropdown(null);
+                                  }}
+                                >
+                                  {f}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </td>
+
+                      {/* Actions Cell */}
+                      <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", alignItems: "center" }}>
+                          <button
+                            className="btn-present"
+                            onClick={() => onPresent(p)}
+                            disabled={isProcessing}
+                            title="Start presenting"
+                          >
+                            {isProcessing ? (
+                              <>
+                                <Loader2 className="animate-spin" size={12} /> Processing
+                              </>
+                            ) : (
+                              <>
+                                <Play size={12} fill="currentColor" /> Present
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            className="btn-delete"
+                            onClick={() => handleDelete(p.id)}
+                            title="Delete presentation"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
 

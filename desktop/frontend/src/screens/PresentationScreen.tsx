@@ -87,6 +87,26 @@ export default function PresentationScreen({
   const [laserHistory, setLaserHistory] = useState<{ x: number; y: number }[]>([]);
   const [localLaserPos, setLocalLaserPos] = useState<{ x: number; y: number } | null>(null);
 
+  // Zoom feature state
+  const [zoom, setZoom] = useState({ scale: 1.0, x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    setZoom({ scale: 1.0, x: 0.5, y: 0.5 });
+  }, [currentSlide]);
+
+  useEffect(() => {
+    EventsOn("zoom", (data: any) => {
+      setZoom({
+        scale: data.scale ?? 1.0,
+        x: data.x ?? 0.5,
+        y: data.y ?? 0.5,
+      });
+    });
+    return () => {
+      EventsOff("zoom");
+    };
+  }, []);
+
   const currentSlideRef = useRef(currentSlide);
   useEffect(() => {
     currentSlideRef.current = currentSlide;
@@ -275,7 +295,7 @@ export default function PresentationScreen({
 
   // Capture slide container dimensions for responsive scaling preserving 16:9 aspect ratio
   useEffect(() => {
-    if (activePrez.source !== "pptx") return;
+    if (activePrez.source !== "pptx" && activePrez.source !== "pdf" && activePrez.source !== "google") return;
 
     let timeoutId: any = null;
 
@@ -330,7 +350,13 @@ export default function PresentationScreen({
 
   // Load PPTX file bytes from Go backend once when active presentation changes
   useEffect(() => {
-    if (activePrez.source !== "pptx") {
+    if (activePrez.source !== "pptx" && activePrez.source !== "pdf") {
+      setPptxBuffer(null);
+      return;
+    }
+    
+    // For PDF, we don't need to load the file bytes - images are rendered server-side
+    if (activePrez.source === "pdf") {
       setPptxBuffer(null);
       return;
     }
@@ -379,7 +405,7 @@ export default function PresentationScreen({
   }, [activePrez.id]);
 
   const fetchImage = async () => {
-    if (activePrez.source !== "pptx") return;
+    if (activePrez.source !== "pptx" && activePrez.source !== "pdf" && activePrez.source !== "google") return;
     setImageLoading(true);
     try {
       const base64Data = await GetSlideImage(activePrez.id, currentSlide);
@@ -387,15 +413,19 @@ export default function PresentationScreen({
     } catch (err) {
       console.log("Slide image not available on disk yet:", err);
       setSlideImage("");
-      // Trigger background export silently if slides aren't exported at all
-      try {
-        await GetSlideImage(activePrez.id, 1);
-      } catch (checkErr) {
-        console.log("Triggering slide images generation on Go backend...");
+      
+      // Google Slides might not be downloadable/cacheable (e.g. published web-link fallback)
+      // Only trigger export if we actually have a filepath or it is PPTX/PDF source
+      if (activePrez.source === "pptx" || activePrez.source === "pdf" || activePrez.filePath) {
         try {
-          await ExportPresentationImages(activePrez.id);
-        } catch (exportErr: any) {
-          console.error("Failed to trigger presentation slide export:", exportErr);
+          await GetSlideImage(activePrez.id, 1);
+        } catch (checkErr) {
+          console.log("Triggering slide images generation on Go backend...");
+          try {
+            await ExportPresentationImages(activePrez.id);
+          } catch (exportErr: any) {
+            console.error("Failed to trigger presentation slide export:", exportErr);
+          }
         }
       }
     } finally {
@@ -410,7 +440,7 @@ export default function PresentationScreen({
 
   // Listen for backend slide export events
   useEffect(() => {
-    if (activePrez.source !== "pptx") return;
+    if (activePrez.source !== "pptx" && activePrez.source !== "pdf" && activePrez.source !== "google") return;
 
     const handleComplete = (data: any) => {
       if (data.id === activePrez.id) {
@@ -469,11 +499,7 @@ export default function PresentationScreen({
   // Sync slide change when rendering on-the-fly
   useEffect(() => {
     if (slideImage) return; // Skip if we have a cached image
-    if (
-      previewerRef.current &&
-      activePrez.source === "pptx" &&
-      !pptxLoading
-    ) {
+    if (previewerRef.current && activePrez.source === "pptx" && !pptxLoading) {
       try {
         previewerRef.current.renderSingleSlide(currentSlide - 1);
       } catch (err) {
@@ -697,132 +723,149 @@ export default function PresentationScreen({
               <Maximize2 size={14} />
             </button>
             )}
-            {activePrez.source === "google" && activePrez.googleSlidesUrl ? (
-              <iframe
-                src={`${activePrez.googleSlidesUrl.split('#')[0]}#slide=${currentSlide}`}
-                frameBorder="0"
-                width="100%"
-                height="100%"
-                allowFullScreen={true}
-                style={{ pointerEvents: "auto" }}
-                sandbox="allow-scripts allow-same-origin"
-              />
-            ) : (
+            {dimensions ? (
               <div
                 style={{
-                  width: "100%",
-                  height: "100%",
+                  width: `${dimensions.width}px`,
+                  height: `${dimensions.height}px`,
                   position: "relative",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  overflow: "hidden",
+                  transform: `scale(${zoom.scale})`,
+                  transformOrigin: `${zoom.x * 100}% ${zoom.y * 100}%`,
+                  transition: "transform 0.15s ease-out, transform-origin 0.15s ease-out",
+                  zIndex: 1,
                 }}
               >
-                {slideImage ? (
-                  <img
-                    src={slideImage}
-                    alt={`Slide ${currentSlide}`}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                    }}
+                {activePrez.source === "google" && activePrez.googleSlidesUrl && !slideImage ? (
+                  <iframe
+                    src={`${activePrez.googleSlidesUrl.split('#')[0]}#slide=${currentSlide}`}
+                    frameBorder="0"
+                    width="100%"
+                    height="100%"
+                    allowFullScreen={true}
+                    style={{ pointerEvents: "auto" }}
+                    sandbox="allow-scripts allow-same-origin"
                   />
                 ) : (
                   <div
-                    ref={pptxContainerRef}
                     style={{
                       width: "100%",
                       height: "100%",
+                      position: "relative",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      overflow: "hidden",
                     }}
-                    className="pptx-render-container"
-                  />
+                  >
+                    {slideImage ? (
+                      <img
+                        src={slideImage}
+                        alt={`Slide ${currentSlide}`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        ref={pptxContainerRef}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        className="pptx-render-container"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Drawing Canvas Overlay */}
+                <canvas
+                  ref={canvasRef}
+                  width={dimensions.width}
+                  height={dimensions.height}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: "100%",
+                    height: "100%",
+                    pointerEvents: "none",
+                    zIndex: 9990,
+                  }}
+                />
+
+                {/* Laser Pointer & Glowing Tail Overlay */}
+                {(laserHistory.length > 0 || localLaserPos) && (
+                  <svg
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 9995,
+                    }}
+                  >
+                    {/* Laser Tail */}
+                    {laserHistory.map((point, index) => {
+                      if (index === 0) return null;
+                      const prevPoint = laserHistory[index - 1];
+                      const x1 = prevPoint.x * dimensions.width;
+                      const y1 = prevPoint.y * dimensions.height;
+                      const x2 = point.x * dimensions.width;
+                      const y2 = point.y * dimensions.height;
+
+                      const opacity = (index / laserHistory.length) * 0.7;
+                      const strokeWidth = (index / laserHistory.length) * 5 + 1.5;
+
+                      return (
+                        <line
+                          key={index}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="red"
+                          strokeWidth={strokeWidth}
+                          strokeLinecap="round"
+                          opacity={opacity}
+                          style={{ filter: "drop-shadow(0px 0px 3px rgba(255, 0, 0, 0.8))" }}
+                        />
+                      );
+                    })}
+
+                    {/* Glowing Laser Dot */}
+                    {localLaserPos && (
+                      <>
+                        <circle
+                          cx={localLaserPos.x * dimensions.width}
+                          cy={localLaserPos.y * dimensions.height}
+                          r={7}
+                          fill="red"
+                          style={{ filter: "drop-shadow(0px 0px 5px rgba(255, 0, 0, 0.9))" }}
+                        />
+                        <circle
+                          cx={localLaserPos.x * dimensions.width}
+                          cy={localLaserPos.y * dimensions.height}
+                          r={2}
+                          fill="white"
+                        />
+                      </>
+                    )}
+                  </svg>
                 )}
               </div>
-            )}
-
-            {/* Drawing Canvas Overlay */}
-            {dimensions && slideAreaRef.current && (
-              <canvas
-                ref={canvasRef}
-                width={dimensions.width}
-                height={dimensions.height}
-                style={{
-                  position: "absolute",
-                  left: `${(slideAreaRef.current.clientWidth - dimensions.width) / 2}px`,
-                  top: `${(slideAreaRef.current.clientHeight - dimensions.height) / 2}px`,
-                  width: `${dimensions.width}px`,
-                  height: `${dimensions.height}px`,
-                  pointerEvents: "none",
-                  zIndex: 9990,
-                }}
-              />
-            )}
-
-            {/* Laser Pointer & Glowing Tail Overlay */}
-            {slideAreaRef.current && dimensions && (laserHistory.length > 0 || localLaserPos) && (
-              <svg
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  width: "100%",
-                  height: "100%",
-                  pointerEvents: "none",
-                  zIndex: 9995,
-                }}
-              >
-                {/* Laser Tail */}
-                {laserHistory.map((point, index) => {
-                  if (index === 0) return null;
-                  const prevPoint = laserHistory[index - 1];
-                  const x1 = (slideAreaRef.current!.clientWidth - dimensions.width) / 2 + prevPoint.x * dimensions.width;
-                  const y1 = (slideAreaRef.current!.clientHeight - dimensions.height) / 2 + prevPoint.y * dimensions.height;
-                  const x2 = (slideAreaRef.current!.clientWidth - dimensions.width) / 2 + point.x * dimensions.width;
-                  const y2 = (slideAreaRef.current!.clientHeight - dimensions.height) / 2 + point.y * dimensions.height;
-
-                  const opacity = (index / laserHistory.length) * 0.7;
-                  const strokeWidth = (index / laserHistory.length) * 5 + 1.5;
-
-                  return (
-                    <line
-                      key={index}
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke="red"
-                      strokeWidth={strokeWidth}
-                      strokeLinecap="round"
-                      opacity={opacity}
-                      style={{ filter: "drop-shadow(0px 0px 3px rgba(255, 0, 0, 0.8))" }}
-                    />
-                  );
-                })}
-
-                {/* Glowing Laser Dot */}
-                {localLaserPos && (
-                  <>
-                    <circle
-                      cx={(slideAreaRef.current.clientWidth - dimensions.width) / 2 + localLaserPos.x * dimensions.width}
-                      cy={(slideAreaRef.current.clientHeight - dimensions.height) / 2 + localLaserPos.y * dimensions.height}
-                      r={7}
-                      fill="red"
-                      style={{ filter: "drop-shadow(0px 0px 5px rgba(255, 0, 0, 0.9))" }}
-                    />
-                    <circle
-                      cx={(slideAreaRef.current.clientWidth - dimensions.width) / 2 + localLaserPos.x * dimensions.width}
-                      cy={(slideAreaRef.current.clientHeight - dimensions.height) / 2 + localLaserPos.y * dimensions.height}
-                      r={2}
-                      fill="white"
-                    />
-                  </>
-                )}
-              </svg>
+            ) : (
+              <div style={{ color: "var(--text-muted)", fontSize: "14px" }}>Loading slide layout...</div>
             )}
           </div>
 

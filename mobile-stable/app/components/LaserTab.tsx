@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Text,
   View,
@@ -16,7 +16,7 @@ interface LaserTabProps {
   totalSlides: number;
 }
 
-type ToolType = "laser" | "pen" | "highlighter" | "eraser";
+type ToolType = "laser" | "pen" | "highlighter" | "eraser" | "zoom";
 
 export default function LaserTab({
   theme,
@@ -30,6 +30,19 @@ export default function LaserTab({
   const [activeTool, setActiveTool] = useState<ToolType>("laser");
   const [penColor, setPenColor] = useState<string>("red");
   const [localPointer, setLocalPointer] = useState<{ x: number; y: number } | null>(null);
+
+  // Zoom states
+  const [zoomScale, setZoomScale] = useState<number>(1.0);
+  const [zoomCenterX, setZoomCenterX] = useState<number>(0.5);
+  const [zoomCenterY, setZoomCenterY] = useState<number>(0.5);
+
+  // Reset zoom on slide change
+  useEffect(() => {
+    setZoomScale(1.0);
+    setZoomCenterX(0.5);
+    setZoomCenterY(0.5);
+    sendEncryptedCommand({ action: "zoom", scale: 1.0, x: 0.5, y: 0.5 }).catch(() => {});
+  }, [currentSlide]);
 
   const isLight = theme === "light";
   const bgCard = isLight ? "#ffffff" : "#18181b";
@@ -71,6 +84,14 @@ export default function LaserTab({
         sendEncryptedCommand({ action: "draw-start", tool: "highlighter", color: "yellow", x, y });
       } else if (activeTool === "eraser") {
         sendEncryptedCommand({ action: "draw-start", tool: "eraser", x, y });
+      } else if (activeTool === "zoom") {
+        const halfW = 1 / (2 * zoomScale);
+        const halfH = 1 / (2 * zoomScale);
+        const cx = Math.max(halfW, Math.min(1 - halfW, x));
+        const cy = Math.max(halfH, Math.min(1 - halfH, y));
+        setZoomCenterX(cx);
+        setZoomCenterY(cy);
+        sendEncryptedCommand({ action: "zoom", scale: zoomScale, x: cx, y: cy }).catch(() => {});
       }
     },
     onPanResponderMove: (evt) => {
@@ -80,6 +101,14 @@ export default function LaserTab({
 
       if (activeTool === "laser") {
         sendEncryptedCommand({ action: "laser", x, y });
+      } else if (activeTool === "zoom") {
+        const halfW = 1 / (2 * zoomScale);
+        const halfH = 1 / (2 * zoomScale);
+        const cx = Math.max(halfW, Math.min(1 - halfW, x));
+        const cy = Math.max(halfH, Math.min(1 - halfH, y));
+        setZoomCenterX(cx);
+        setZoomCenterY(cy);
+        sendEncryptedCommand({ action: "zoom", scale: zoomScale, x: cx, y: cy }).catch(() => {});
       } else {
         sendEncryptedCommand({ action: "draw-move", x, y });
       }
@@ -88,6 +117,8 @@ export default function LaserTab({
       setLocalPointer(null);
       if (activeTool === "laser") {
         sendEncryptedCommand({ action: "laser-off" });
+      } else if (activeTool === "zoom") {
+        // No end action needed for zoom
       } else {
         sendEncryptedCommand({ action: "draw-end" });
       }
@@ -96,6 +127,8 @@ export default function LaserTab({
       setLocalPointer(null);
       if (activeTool === "laser") {
         sendEncryptedCommand({ action: "laser-off" });
+      } else if (activeTool === "zoom") {
+        // No end action needed for zoom
       } else {
         sendEncryptedCommand({ action: "draw-end" });
       }
@@ -145,89 +178,121 @@ export default function LaserTab({
         <TouchableOpacity
           onPress={() => setActiveTool("laser")}
           style={{
-            flex: 1,
+            flex: activeTool === "laser" ? 1.5 : 1,
             backgroundColor: activeTool === "laser" ? activeBg : "transparent",
             borderRadius: 12,
           }}
-          className="py-2.5 items-center justify-center flex-row gap-1.5"
+          className="py-2.5 items-center justify-center flex-row gap-1"
         >
           <Ionicons
             name="aperture-outline"
             size={15}
             color={activeTool === "laser" ? textPrimary : textSecondary}
           />
-          <Text
-            style={{ color: activeTool === "laser" ? textPrimary : textSecondary }}
-            className="text-[10px] font-bold tracking-wider uppercase"
-          >
-            Laser
-          </Text>
+          {activeTool === "laser" && (
+            <Text
+              style={{ color: textPrimary }}
+              className="text-[9px] font-bold tracking-wider uppercase"
+            >
+              Laser
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setActiveTool("pen")}
           style={{
-            flex: 1,
+            flex: activeTool === "pen" ? 1.5 : 1,
             backgroundColor: activeTool === "pen" ? activeBg : "transparent",
             borderRadius: 12,
           }}
-          className="py-2.5 items-center justify-center flex-row gap-1.5"
+          className="py-2.5 items-center justify-center flex-row gap-1"
         >
           <Ionicons
             name="pencil-outline"
             size={15}
             color={activeTool === "pen" ? textPrimary : textSecondary}
           />
-          <Text
-            style={{ color: activeTool === "pen" ? textPrimary : textSecondary }}
-            className="text-[10px] font-bold tracking-wider uppercase"
-          >
-            Pen
-          </Text>
+          {activeTool === "pen" && (
+            <Text
+              style={{ color: textPrimary }}
+              className="text-[9px] font-bold tracking-wider uppercase"
+            >
+              Pen
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setActiveTool("highlighter")}
           style={{
-            flex: 1,
+            flex: activeTool === "highlighter" ? 1.5 : 1,
             backgroundColor: activeTool === "highlighter" ? activeBg : "transparent",
             borderRadius: 12,
           }}
-          className="py-2.5 items-center justify-center flex-row gap-1.5"
+          className="py-2.5 items-center justify-center flex-row gap-1"
         >
           <Ionicons
             name="brush-outline"
             size={15}
             color={activeTool === "highlighter" ? textPrimary : textSecondary}
           />
-          <Text
-            style={{ color: activeTool === "highlighter" ? textPrimary : textSecondary }}
-            className="text-[10px] font-bold tracking-wider uppercase"
-          >
-            Highlight
-          </Text>
+          {activeTool === "highlighter" && (
+            <Text
+              style={{ color: textPrimary }}
+              className="text-[9px] font-bold tracking-wider uppercase"
+            >
+              Highlight
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setActiveTool("eraser")}
           style={{
-            flex: 1,
+            flex: activeTool === "eraser" ? 1.5 : 1,
             backgroundColor: activeTool === "eraser" ? activeBg : "transparent",
             borderRadius: 12,
           }}
-          className="py-2.5 items-center justify-center flex-row gap-1.5"
+          className="py-2.5 items-center justify-center flex-row gap-1"
         >
           <Ionicons
             name="close-circle-outline"
             size={15}
             color={activeTool === "eraser" ? textPrimary : textSecondary}
           />
-          <Text
-            style={{ color: activeTool === "eraser" ? textPrimary : textSecondary }}
-            className="text-[10px] font-bold tracking-wider uppercase"
-          >
-            Eraser
-          </Text>
+          {activeTool === "eraser" && (
+            <Text
+              style={{ color: textPrimary }}
+              className="text-[9px] font-bold tracking-wider uppercase"
+            >
+              Eraser
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setActiveTool("zoom")}
+          style={{
+            flex: activeTool === "zoom" ? 1.5 : 1,
+            backgroundColor: activeTool === "zoom" ? activeBg : "transparent",
+            borderRadius: 12,
+          }}
+          className="py-2.5 items-center justify-center flex-row gap-1"
+        >
+          <Ionicons
+            name="search-outline"
+            size={15}
+            color={activeTool === "zoom" ? textPrimary : textSecondary}
+          />
+          {activeTool === "zoom" && (
+            <Text
+              style={{ color: textPrimary }}
+              className="text-[9px] font-bold tracking-wider uppercase"
+            >
+              Zoom
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -257,6 +322,61 @@ export default function LaserTab({
         </View>
       )}
 
+      {/* Zoom Scale Selector sub-row */}
+      {activeTool === "zoom" && (
+        <View className="flex-row justify-between items-center px-2 py-1">
+          <Text style={{ color: textSecondary }} className="text-[9px] font-bold uppercase tracking-wider">
+            Zoom Scale
+          </Text>
+          <View
+            style={{
+              backgroundColor: isLight ? "#e4e4e7" : "#27272a",
+              borderColor: borderCol,
+            }}
+            className="flex-row rounded-full p-1 border items-center"
+          >
+            {[1.0, 1.5, 2.0, 3.0, 4.0].map((scale) => (
+              <TouchableOpacity
+                key={scale}
+                onPress={() => {
+                  setZoomScale(scale);
+                  if (scale === 1.0) {
+                    setZoomCenterX(0.5);
+                    setZoomCenterY(0.5);
+                    sendEncryptedCommand({ action: "zoom", scale: 1.0, x: 0.5, y: 0.5 });
+                  } else {
+                    const halfW = 1 / (2 * scale);
+                    const halfH = 1 / (2 * scale);
+                    const cx = Math.max(halfW, Math.min(1 - halfW, zoomCenterX));
+                    const cy = Math.max(halfH, Math.min(1 - halfH, zoomCenterY));
+                    setZoomCenterX(cx);
+                    setZoomCenterY(cy);
+                    sendEncryptedCommand({ action: "zoom", scale: scale, x: cx, y: cy });
+                  }
+                }}
+                style={{
+                  backgroundColor: zoomScale === scale ? (isLight ? "#ffffff" : "#0f0f11") : "transparent",
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 9999,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={{
+                    color: zoomScale === scale ? textPrimary : textSecondary,
+                    fontSize: 10,
+                    fontWeight: "bold",
+                  }}
+                >
+                  {scale.toFixed(1)}x
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* Touchpad Area - Exact 16:9 ratio */}
       <View
         ref={touchpadRef}
@@ -266,10 +386,26 @@ export default function LaserTab({
         {...panResponder.panHandlers}
       >
         {slideImage ? (
-          <View pointerEvents="none" style={{ width: "100%", height: "100%", position: "absolute" }}>
+          <View
+            pointerEvents="none"
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "absolute",
+              overflow: "hidden",
+            }}
+          >
             <Image
               source={{ uri: slideImage.startsWith("data:") ? slideImage : `data:image/jpeg;base64,${slideImage}` }}
-              style={{ width: "100%", height: "100%" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                transform: activeTool === "zoom" ? [] : [
+                  { translateX: (0.5 - zoomCenterX) * touchpadLayout.width * (zoomScale - 1) },
+                  { translateY: (0.5 - zoomCenterY) * touchpadLayout.height * (zoomScale - 1) },
+                  { scale: zoomScale },
+                ],
+              }}
               resizeMode="contain"
             />
           </View>
@@ -294,8 +430,71 @@ export default function LaserTab({
           </View>
         )}
 
+        {/* Primary Viewport Selector Box (only shown in Zoom mode when zoomScale > 1.0) */}
+        {slideImage && activeTool === "zoom" && zoomScale > 1.0 && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: `${Math.max(0, Math.min(100 - (100 / zoomScale), (zoomCenterX - 1 / (2 * zoomScale)) * 100))}%`,
+              top: `${Math.max(0, Math.min(100 - (100 / zoomScale), (zoomCenterY - 1 / (2 * zoomScale)) * 100))}%`,
+              width: `${100 / zoomScale}%`,
+              height: `${100 / zoomScale}%`,
+              borderWidth: 2,
+              borderColor: "#f97316", // Orange box border
+              backgroundColor: "rgba(249, 115, 22, 0.15)", // subtle orange tint
+              borderRadius: 4,
+            }}
+          />
+        )}
+
+        {/* Zoom Minimap Indicator (only shown in drawing/laser modes when zoomScale > 1.0) */}
+        {slideImage && activeTool !== "zoom" && zoomScale > 1.0 && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              width: 80,
+              aspectRatio: 16 / 9,
+              borderRadius: 6,
+              borderWidth: 1.5,
+              borderColor: isLight ? "#d4d4d8" : "#3f3f46",
+              backgroundColor: "rgba(0, 0, 0, 0.75)",
+              overflow: "hidden",
+              zIndex: 99,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
+              elevation: 5,
+            }}
+          >
+            {/* Slide Miniature */}
+            <Image
+              source={{ uri: slideImage.startsWith("data:") ? slideImage : `data:image/jpeg;base64,${slideImage}` }}
+              style={{ width: "100%", height: "100%", opacity: 0.65 }}
+              resizeMode="contain"
+            />
+            {/* Viewport Box representing the zoomed area */}
+            <View
+              style={{
+                position: "absolute",
+                left: `${Math.max(0, Math.min(100 - (100 / zoomScale), (zoomCenterX - 1 / (2 * zoomScale)) * 100))}%`,
+                top: `${Math.max(0, Math.min(100 - (100 / zoomScale), (zoomCenterY - 1 / (2 * zoomScale)) * 100))}%`,
+                width: `${100 / zoomScale}%`,
+                height: `${100 / zoomScale}%`,
+                borderWidth: 1.5,
+                borderColor: "#f97316", // Premium high-visibility orange
+                backgroundColor: "rgba(249, 115, 22, 0.05)",
+              }}
+            />
+          </View>
+        )}
+
         {/* Local Pointer Circle Indicator */}
-        {localPointer && (
+        {localPointer && activeTool !== "zoom" && (
           <View
             style={{
               position: "absolute",
