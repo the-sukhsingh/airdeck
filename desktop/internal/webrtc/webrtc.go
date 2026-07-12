@@ -1,6 +1,7 @@
 package webrtc
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"log"
@@ -33,6 +34,9 @@ type WebRTCManager struct {
 	connected      bool
 	wsConn         *websocket.Conn
 }
+
+//go:embed remote.html
+var remoteHTML []byte
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -71,6 +75,11 @@ func (w *WebRTCManager) StartLocalSignalingServer() (int, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/signaling", w.handleSignaling)
+	mux.HandleFunc("/", func(writer http.ResponseWriter, req *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		writer.Write(remoteHTML)
+	})
 
 	w.httpServer = &http.Server{
 		Handler:      mux,
@@ -129,9 +138,12 @@ func (w *WebRTCManager) handleSignaling(writer http.ResponseWriter, req *http.Re
 	}
 
 	w.mutex.Lock()
-	if w.wsConn == nil {
-		w.wsConn = conn
+	if w.wsConn != nil {
+		log.Printf("[WebRTC] Closing existing WebSocket connection to accept new connection")
+		w.wsConn.Close()
 	}
+	w.wsConn = conn
+	w.connected = false
 	w.mutex.Unlock()
 
 	defer func() {

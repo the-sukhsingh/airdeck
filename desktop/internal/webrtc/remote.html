@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AirDeck Web Remote</title>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-primary: #0A0A0A;
+      --bg-secondary: #161616;
+      --bg-tertiary: #222222;
+      --border-color: #2D2D2D;
+      --border-focus: #444444;
+      
+      --text-primary: #FFFFFF;
+      --text-secondary: #A0A0A0;
+      --text-muted: #666666;
+      --accent: #FFFFFF;
+      --accent-green: #00FF66;
+      --accent-red: #FF3333;
+      
+      --radius-sm: 2px;
+      --radius-md: 8px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+      
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Courier New', Courier, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      height: -webkit-fill-available;
+      display: flex;
+      flex-direction: column;
+    }
+
+    html {
+      height: -webkit-fill-available;
+    }
+
+    /* Scrollbars styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-full);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-focus);
+    }
+
+    /* Outer Wrapper for Views */
+    #view-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .view {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease-in-out;
+      z-index: 1;
+    }
+
+    .view.active {
+      opacity: 1;
+      pointer-events: auto;
+      z-index: 10;
+    }
+
+    /* View 1: Connect / Pairing screen */
+    #connect-view {
+      justify-content: center;
+      align-items: center;
+      padding: var(--space-lg);
+      background-color: var(--bg-primary);
+    }
+
+    .card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .card-header {
+      text-align: center;
+      margin-bottom: var(--space-sm);
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-xs);
+    }
+
+    .card-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .input-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+    }
+
+    .text-input {
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      font-size: 16px;
+      font-family: var(--font-sans);
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .text-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .btn {
+      background-color: var(--accent);
+      color: #000000;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: var(--space-sm);
+      transition: opacity 0.2s ease;
+    }
+
+    .btn:active {
+      opacity: 0.8;
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    /* Auth state displays */
+    .status-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .status-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .fingerprint-container {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      background-color: var(--bg-secondary);
+      padding: var(--space-sm) var(--space-md);
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.1em;
+      margin-top: var(--space-xs);
+    }
+
+    /* View 2: Main Controller screen */
+    #controller-view {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header Panel */
+    .header {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px var(--space-md);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 60px;
+    }
+
+    .presentation-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 60vw;
+    }
+
+    .connection-indicator {
+      font-size: 11px;
+      color: var(--accent-green);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .indicator-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-green);
+    }
+
+    /* Tab Switcher Layout */
+    .tabs-bar {
+      display: flex;
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      height: 50px;
+    }
+
+    .tab-button {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: background-color 0.2s, color 0.2s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .tab-button.active {
+      background-color: var(--accent);
+      color: #000000;
+      font-weight: 700;
+    }
+
+    /* Panel contents inside controller */
+    .panel-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+      padding: var(--space-md);
+    }
+
+    .panel.active {
+      display: flex;
+    }
+
+    /* Panel 1: Swipe Touchpad */
+    #touchpad-panel {
+      justify-content: space-between;
+      gap: var(--space-md);
+    }
+
+    .touchpad-area {
+      flex: 1;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      touch-action: none;
+    }
+
+    .touchpad-instructions {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      pointer-events: none;
+      line-height: 1.5;
+    }
+
+    .touchpad-icon {
+      font-size: 24px;
+      color: var(--text-muted);
+      margin-bottom: var(--space-sm);
+      pointer-events: none;
+    }
+
+    /* Control Buttons */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-sm);
+      margin-top: auto;
+    }
+
+    .slide-progress-info {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      padding: var(--space-xs);
+    }
+
+    /* Panel 2: Notes & ToC */
+    #notes-panel {
+      gap: var(--space-md);
+      overflow-y: auto;
+      user-select: text; /* Allow note selection */
+    }
+
+    .notes-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      flex: 1;
+      min-height: 150px;
+      overflow-y: auto;
+      user-select: text;
+    }
+
+    .notes-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 4px;
+    }
+
+    .notes-content {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      user-select: text;
+    }
+
+    /* Table of contents slide list */
+    .toc-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      max-height: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .toc-list {
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .toc-item {
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-primary);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+
+    .toc-item:active {
+      border-color: var(--border-focus);
+      background-color: var(--bg-tertiary);
+    }
+
+    .toc-item.active {
+      background-color: var(--text-primary);
+      color: #000000;
+      border-color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .toc-item-index {
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    /* Panel 3: Laser Pointer view */
+    #laser-panel {
+      padding: 0;
+      justify-content: center;
+      align-items: center;
+      background-color: #000000;
+    }
+
+    .laser-area-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      touch-action: none;
+      overflow: hidden;
+    }
+
+    .laser-slide-preview {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+      background-color: var(--bg-secondary);
+    }
+
+    .laser-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      touch-action: none;
+      z-index: 100;
+    }
+
+    .laser-pointer-dot {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background-color: rgba(255, 0, 0, 0.4);
+      border: 2px solid #FF0000;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 0 10px #FF0000;
+    }
+
+    .laser-pointer-dot::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 6px;
+      height: 6px;
+      background-color: #FFFFFF;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .fullscreen-btn {
+      position: absolute;
+      bottom: var(--space-md);
+      right: var(--space-md);
+      z-index: 110;
+      background-color: rgba(22, 22, 22, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-full);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    /* Modal Overlay for pairing accept */
+    #alert-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.85);
+      z-index: 200;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: var(--space-lg);
+    }
+
+    #alert-modal.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top: 2px solid var(--text-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="view-container">
+    
+    <!-- CONNECT VIEW -->
+    <div id="connect-view" class="view active">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">AirDeck Web Remote</div>
+          <div class="card-subtitle">Connect to presentation signaling server</div>
+        </div>
+
+        <div id="pairing-setup-form" style="display: flex; flex-direction: column; gap: var(--space-md);">
+          <div class="input-group">
+            <span class="input-label">Room ID</span>
+            <input type="text" id="room-input" class="text-input" placeholder="e.g. TEST12" autocomplete="off" style="text-transform: uppercase;">
+          </div>
+          
+          <div class="input-group">
+            <span class="input-label">Passcode</span>
+            <input type="text" id="passcode-input" class="text-input" placeholder="e.g. 123456" autocomplete="off">
+          </div>
+
+          <button id="connect-btn" class="btn" style="margin-top: 8px;">
+            <span>Connect Remote</span>
+          </button>
+        </div>
+
+        <!-- AUTHENTICATING SCREEN -->
+        <div id="pairing-status-panel" style="display: none; flex-direction: column; gap: var(--space-md);">
+          <div class="status-badge">
+            <div id="status-spinner" class="spinner"></div>
+            <div id="connection-status-text" class="status-text">Connecting to desktop...</div>
+          </div>
+
+          <div id="fingerprint-display" style="display: none; flex-direction: column; align-items: center; gap: var(--space-xs); text-align: center;">
+            <span class="input-label" style="color: var(--text-secondary);">Verify Security Fingerprint</span>
+            <div id="fingerprint-value" class="fingerprint-value fingerprint-container">----</div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: var(--space-sm); line-height: 1.4;">
+              Confirm that this code matches the pairing request popup on your presentation laptop screen.
+            </div>
+          </div>
+
+          <button id="cancel-conn-btn" class="btn btn-secondary" style="margin-top: 8px;">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTROLLER VIEW -->
+    <div id="controller-view" class="view">
+      <!-- HEADER -->
+      <div class="header">
+        <div id="header-prez-name" class="presentation-title">Loading Presentation...</div>
+        <div class="connection-indicator">
+          <div class="indicator-dot"></div>
+          <span>Connected</span>
+        </div>
+      </div>
+
+      <!-- TABS BAR -->
+      <div class="tabs-bar">
+        <button class="tab-button active" onclick="switchPanel('control')">Control</button>
+        <button class="tab-button" onclick="switchPanel('notes')">Notes</button>
+        <button class="tab-button" onclick="switchPanel('laser')">Laser</button>
+      </div>
+
+      <!-- PANEL CONTAINER -->
+      <div class="panel-container">
+        
+        <!-- PANEL 1: CONTROL (TOUCHPAD) -->
+        <div id="control-panel" class="panel active">
+          <div id="touchpad" class="touchpad-area">
+            <div class="touchpad-icon">⇆</div>
+            <div class="touchpad-instructions">
+              Swipe Left/Right to change slides<br>
+              <span style="font-size: 11px; color: var(--text-muted); margin-top: var(--space-xs); display: block;">
+                (Or tap left/right halves)
+              </span>
+            </div>
+          </div>
+
+          <div class="slide-progress-info" style="margin-top: var(--space-md); margin-bottom: var(--space-xs);">
+            SLIDE <span id="current-slide-num">1</span> OF <span id="total-slide-num">1</span>
+          </div>
+
+          <div class="controls-grid">
+            <button id="prev-btn" class="btn btn-secondary" style="padding: 12px;">PREV</button>
+            <button id="next-btn" class="btn btn-secondary" style="padding: 12px;">NEXT</button>
+          </div>
+          
+          <div class="controls-grid" style="margin-top: var(--space-sm);">
+            <button id="fullscreen-btn" class="btn btn-secondary" style="padding: 10px; font-size: 12px; grid-column: span 2;">TOGGLE FULLSCREEN</button>
+          </div>
+        </div>
+
+        <!-- PANEL 2: NOTES & SLIDES -->
+        <div id="notes-panel" class="panel">
+          <div class="notes-card">
+            <div class="notes-title">Speaker Notes</div>
+            <div id="notes-text" class="notes-content">No presenter notes available.</div>
+          </div>
+
+          <div class="toc-card">
+            <div class="notes-title">Table of Contents</div>
+            <div id="toc-list" class="toc-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 3: LASER POINTER -->
+        <div id="laser-panel" class="panel">
+          <div class="laser-area-wrapper" id="laser-wrapper">
+            <img id="laser-preview-img" class="laser-slide-preview" src="" alt="Slide Preview" style="display: none;">
+            <div id="laser-no-preview" style="color: var(--text-muted); font-size: 13px; text-align: center; padding: var(--space-lg);">
+              No slide preview available.<br>Laser is active. Drag anywhere to point.
+            </div>
+            <div class="laser-overlay" id="laser-touch-overlay"></div>
+            <div id="laser-pointer-dot" class="laser-pointer-dot"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Fallback Crypto Bundle for Insecure HTTP Contexts (Pure JS ECDH P-256 & AES-GCM) -->
+  <script>
+    "use strict";(()=>{function ee(e){return e instanceof Uint8Array||ArrayBuffer.isView(e)&&e.constructor.name==="Uint8Array"&&"BYTES_PER_ELEMENT"in e&&e.BYTES_PER_ELEMENT===1}function ft(e,t=""){if(typeof e!="number"){let r=t&&`"${t}" `;throw new TypeError(`${r}expected number, got ${typeof e}`)}if(!Number.isSafeInteger(e)||e<0){let r=t&&`"${t}" `;throw new RangeError(`${r}expected integer >= 0, got ${e}`)}}function P(e,t,r=""){let n=ee(e),o=e?.length,s=t!==void 0;if(!n||s&&o!==t){let c=r&&`"${r}" `,i=s?` of length ${t}`:"",f=n?`length=${o}`:`type=${typeof e}`,a=c+"expected Uint8Array"+i+", got "+f;throw n?new RangeError(a):new TypeError(a)}return e}function Ht(e){if(typeof e!="function"||typeof e.create!="function")throw new TypeError("Hash must wrapped by utils.createHasher");if(ft(e.outputLen),ft(e.blockLen),e.outputLen<1)throw new Error('"outputLen" must be >= 1');if(e.blockLen<1)throw new Error('"blockLen" must be >= 1')}function xt(e,t=!0){if(e.destroyed)throw new Error("Hash instance has been destroyed");if(t&&e.finished)throw new Error("Hash#digest() has already been called")}function Ct(e,t){P(e,void 0,"digestInto() output");let r=t.outputLen;if(e.length<r)throw new RangeError('"digestInto() output" expected to be of length >='+r)}function ut(...e){for(let t=0;t<e.length;t++)e[t].fill(0)}function Nt(e){return new DataView(e.buffer,e.byteOffset,e.byteLength)}function $(e,t){return e<<32-t|e>>>t}var De=typeof Uint8Array.from([]).toHex=="function"&&typeof Uint8Array.fromHex=="function",Un=Array.from({length:256},(e,t)=>t.toString(16).padStart(2,"0"));function qt(e){if(P(e),De)return e.toHex();let t="";for(let r=0;r<e.length;r++)t+=Un[e[r]];return t}var et={_0:48,_9:57,A:65,F:70,a:97,f:102};function qe(e){if(e>=et._0&&e<=et._9)return e-et._0;if(e>=et.A&&e<=et.F)return e-(et.A-10);if(e>=et.a&&e<=et.f)return e-(et.a-10)}function ne(e){if(typeof e!="string")throw new TypeError("hex string expected, got "+typeof e);if(De)try{return Uint8Array.fromHex(e)}catch(o){throw o instanceof SyntaxError?new RangeError(o.message):o}let t=e.length,r=t/2;if(t%2)throw new RangeError("hex string expected, got unpadded hex of length "+t);let n=new Uint8Array(r);for(let o=0,s=0;o<r;o++,s+=2){let c=qe(e.charCodeAt(s)),i=qe(e.charCodeAt(s+1));if(c===void 0||i===void 0){let f=e[s]+e[s+1];throw new RangeError('hex string expected, got non-hex character "'+f+'" at index '+s)}n[o]=c*16+i}return n}function ke(...e){let t=0;for(let n=0;n<e.length;n++){let o=e[n];P(o),t+=o.length}let r=new Uint8Array(t);for(let n=0,o=0;n<e.length;n++){let s=e[n];r.set(s,o),o+=s.length}return r}function Ve(e,t={}){let r=(o,s)=>e(s).update(o).digest(),n=e(void 0);return r.outputLen=n.outputLen,r.blockLen=n.blockLen,r.canXOF=n.canXOF,r.create=o=>e(o),Object.assign(r,t),Object.freeze(r)}function Me(e=32){ft(e,"bytesLength");let t=typeof globalThis=="object"?globalThis.crypto:null;if(typeof t?.getRandomValues!="function")throw new Error("crypto.getRandomValues must be defined");if(e>65536)throw new RangeError(`"bytesLength" expected <= 65536, got ${e}`);return t.getRandomValues(new Uint8Array(e))}var je=e=>({oid:Uint8Array.from([6,9,96,134,72,1,101,3,4,2,e])});function Ze(e,t,r){return e&t^~e&r}function Ke(e,t,r){return e&t^e&r^t&r}var Dt=class{blockLen;outputLen;canXOF=!1;padOffset;isLE;buffer;view;finished=!1;length=0;pos=0;destroyed=!1;constructor(t,r,n,o){this.blockLen=t,this.outputLen=r,this.padOffset=n,this.isLE=o,this.buffer=new Uint8Array(t),this.view=Nt(this.buffer)}update(t){xt(this),P(t);let{view:r,buffer:n,blockLen:o}=this,s=t.length;for(let c=0;c<s;){let i=Math.min(o-this.pos,s-c);if(i===o){let f=Nt(t);for(;o<=s-c;c+=o)this.process(f,c);continue}n.set(t.subarray(c,c+i),this.pos),this.pos+=i,c+=i,this.pos===o&&(this.process(r,0),this.pos=0)}return this.length+=t.length,this.roundClean(),this}digestInto(t){xt(this),Ct(t,this),this.finished=!0;let{buffer:r,view:n,blockLen:o,isLE:s}=this,{pos:c}=this;r[c++]=128,ut(this.buffer.subarray(c)),this.padOffset>o-c&&(this.process(n,0),c=0);for(let l=c;l<o;l++)r[l]=0;n.setBigUint64(o-8,BigInt(this.length*8),s),this.process(n,0);let i=Nt(t),f=this.outputLen;if(f%4)throw new Error("_sha2: outputLen must be aligned to 32bit");let a=f/4,u=this.get();if(a>u.length)throw new Error("_sha2: outputLen bigger than state");for(let l=0;l<a;l++)i.setUint32(4*l,u[l],s)}digest(){let{buffer:t,outputLen:r}=this;this.digestInto(t);let n=t.slice(0,r);return this.destroy(),n}_cloneInto(t){t||=new this.constructor,t.set(...this.get());let{blockLen:r,buffer:n,length:o,finished:s,destroyed:c,pos:i}=this;return t.destroyed=c,t.finished=s,t.length=o,t.pos=i,o%r&&t.buffer.set(n),t}clone(){return this._cloneInto()}},nt=Uint32Array.from([1779033703,3144134277,1013904242,2773480762,1359893119,2600822924,528734635,1541459225]);var Fn=Uint32Array.from([1116352408,1899447441,3049323471,3921009573,961987163,1508970993,2453635748,2870763221,3624381080,310598401,607225278,1426881987,1925078388,2162078206,2614888103,3248222580,3835390401,4022224774,264347078,604807628,770255983,1249150122,1555081692,1996064986,2554220882,2821834349,2952996808,3210313671,3336571891,3584528711,113926993,338241895,666307205,773529912,1294757372,1396182291,1695183700,1986661051,2177026350,2456956037,2730485921,2820302411,3259730800,3345764771,3516065817,3600352804,4094571909,275423344,430227734,506948616,659060556,883997877,958139571,1322822218,1537002063,1747873779,1955562222,2024104815,2227730452,2361852424,2428436474,2756734187,3204031479,3329325298]),ct=new Uint32Array(64),re=class extends Dt{constructor(t){super(64,t,8,!1)}get(){let{A:t,B:r,C:n,D:o,E:s,F:c,G:i,H:f}=this;return[t,r,n,o,s,c,i,f]}set(t,r,n,o,s,c,i,f){this.A=t|0,this.B=r|0,this.C=n|0,this.D=o|0,this.E=s|0,this.F=c|0,this.G=i|0,this.H=f|0}process(t,r){for(let l=0;l<16;l++,r+=4)ct[l]=t.getUint32(r,!1);for(let l=16;l<64;l++){let y=ct[l-15],p=ct[l-2],m=$(y,7)^$(y,18)^y>>>3,L=$(p,17)^$(p,19)^p>>>10;ct[l]=L+ct[l-7]+m+ct[l-16]|0}let{A:n,B:o,C:s,D:c,E:i,F:f,G:a,H:u}=this;for(let l=0;l<64;l++){let y=$(i,6)^$(i,11)^$(i,25),p=u+y+Ze(i,f,a)+Fn[l]+ct[l]|0,L=($(n,2)^$(n,13)^$(n,22))+Ke(n,o,s)|0;u=a,a=f,f=i,i=c+p|0,c=s,s=o,o=n,n=p+L|0}n=n+this.A|0,o=o+this.B|0,s=s+this.C|0,c=c+this.D|0,i=i+this.E|0,f=f+this.F|0,a=a+this.G|0,u=u+this.H|0,this.set(n,o,s,c,i,f,a,u)}roundClean(){ut(ct)}destroy(){this.destroyed=!0,this.set(0,0,0,0,0,0,0,0),ut(this.buffer)}},oe=class extends re{A=nt[0]|0;B=nt[1]|0;C=nt[2]|0;D=nt[3]|0;E=nt[4]|0;F=nt[5]|0;G=nt[6]|0;H=nt[7]|0;constructor(){super(32)}};var At=Ve(()=>new oe,je(1));var k=(e,t,r)=>P(e,t,r),ie=ft,fe=qt,rt=(...e)=>ke(...e),Mt=e=>ne(e),ce=ee,ae=e=>Me(e),Vt=BigInt(0),se=BigInt(1);function lt(e,t=""){if(typeof e!="boolean"){let r=t&&`"${t}" `;throw new TypeError(r+"expected boolean, got type="+typeof e)}return e}function jt(e){if(typeof e=="bigint"){if(!kt(e))throw new RangeError("positive bigint expected, got "+e)}else ie(e);return e}function Lt(e,t=""){if(typeof e!="number"){let r=t&&`"${t}" `;throw new TypeError(r+"expected number, got type="+typeof e)}if(!Number.isSafeInteger(e)){let r=t&&`"${t}" `;throw new RangeError(r+"expected safe integer, got "+e)}}function Tt(e){let t=jt(e).toString(16);return t.length&1?"0"+t:t}function ze(e){if(typeof e!="string")throw new TypeError("hex string expected, got "+typeof e);return e===""?Vt:BigInt("0x"+e)}function wt(e){return ze(qt(e))}function ue(e){return ze(qt(Hn(P(e)).reverse()))}function Zt(e,t){if(ft(t),t===0)throw new RangeError("zero length");e=jt(e);let r=e.toString(16);if(r.length>t*2)throw new RangeError("number too large");return ne(r.padStart(t*2,"0"))}function le(e,t){return Zt(e,t).reverse()}function Hn(e){return Uint8Array.from(k(e))}var kt=e=>typeof e=="bigint"&&Vt<=e;function Cn(e,t,r){return kt(e)&&kt(t)&&kt(r)&&t<=e&&e<r}function he(e,t,r,n){if(!Cn(t,r,n))throw new RangeError("expected valid "+e+": "+r+" <= n < "+n+", got "+t)}function yt(e){if(e<Vt)throw new Error("expected non-negative bigint, got "+e);let t;for(t=0;e>Vt;e>>=se,t+=1);return t}var Rt=e=>(se<<BigInt(e))-se;function Ye(e,t,r){if(ft(e,"hashLen"),ft(t,"qByteLen"),typeof r!="function")throw new TypeError("hmacFn must be a function");let n=S=>new Uint8Array(S),o=Uint8Array.of(),s=Uint8Array.of(0),c=Uint8Array.of(1),i=1e3,f=n(e),a=n(e),u=0,l=()=>{f.fill(1),a.fill(0),u=0},y=(...S)=>r(a,rt(f,...S)),p=(S=o)=>{a=y(s,S),f=y(),S.length!==0&&(a=y(c,S),f=y())},m=()=>{if(u++>=i)throw new Error("drbg: tried max amount of iterations");let S=0,R=[];for(;S<t;){f=y();let T=f.slice();R.push(T),S+=f.length}return rt(...R)};return(S,R)=>{l(),p(S);let T;for(;(T=R(m()))===void 0;)p();return l(),T}}function ht(e,t={},r={}){if(Object.prototype.toString.call(e)!=="[object Object]")throw new TypeError("expected valid options object");function n(s,c,i){if(!i&&c!=="function"&&!Object.hasOwn(e,s))throw new TypeError(`param "${s}" is invalid: expected own property`);let f=e[s];if(i&&f===void 0)return;let a=typeof f;if(a!==c||f===null)throw new TypeError(`param "${s}" is invalid: expected ${c}, got ${a}`)}let o=(s,c)=>Object.entries(s).forEach(([i,f])=>n(i,f,c));o(t,!1),o(r,!0)}var K=BigInt(0),D=BigInt(1),dt=BigInt(2),Pe=BigInt(3),Xe=BigInt(4),Qe=BigInt(5),Nn=BigInt(7),Je=BigInt(8),qn=BigInt(9),tn=BigInt(16);function G(e,t){if(t<=K)throw new Error("mod: expected positive modulus, got "+t);let r=e%t;return r>=K?r:t+r}function $e(e,t){if(e===K)throw new Error("invert: expected non-zero number");if(t<=K)throw new Error("invert: expected positive modulus, got "+t);let r=G(e,t),n=t,o=K,s=D,c=D,i=K;for(;r!==K;){let a=n/r,u=n-r*a,l=o-c*a,y=s-i*a;n=r,r=u,o=c,s=i,c=l,i=y}if(n!==D)throw new Error("invert: does not exist");return G(o,t)}function de(e,t,r){let n=e;if(!n.eql(n.sqr(t),r))throw new Error("Cannot find square root")}function en(e,t){let r=e,n=(r.ORDER+D)/Xe,o=r.pow(t,n);return de(r,o,t),o}function Dn(e,t){let r=e,n=(r.ORDER-Qe)/Je,o=r.mul(t,dt),s=r.pow(o,n),c=r.mul(t,s),i=r.mul(r.mul(c,dt),s),f=r.mul(c,r.sub(i,r.ONE));return de(r,f,t),f}function kn(e){let t=Yt(e),r=nn(e),n=r(t,t.neg(t.ONE)),o=r(t,n),s=r(t,t.neg(n)),c=(e+Nn)/tn;return((i,f)=>{let a=i,u=a.pow(f,c),l=a.mul(u,n),y=a.mul(u,o),p=a.mul(u,s),m=a.eql(a.sqr(l),f),L=a.eql(a.sqr(y),f);u=a.cmov(u,l,m),l=a.cmov(p,y,L);let S=a.eql(a.sqr(l),f),R=a.cmov(u,l,S);return de(a,R,f),R})}function nn(e){if(e<Pe)throw new Error("sqrt is not defined for small field");let t=e-D,r=0;for(;t%dt===K;)t/=dt,r++;let n=dt,o=Yt(e);for(;Ge(o,n)===1;)if(n++>1e3)throw new Error("Cannot find square root: probably non-prime P");if(r===1)return en;let s=o.pow(n,t),c=(t+D)/dt;return function(f,a){let u=f;if(u.is0(a))return a;if(Ge(u,a)!==1)throw new Error("Cannot find square root");let l=r,y=u.mul(u.ONE,s),p=u.pow(a,t),m=u.pow(a,c);for(;!u.eql(p,u.ONE);){if(u.is0(p))return u.ZERO;let L=1,S=u.sqr(p);for(;!u.eql(S,u.ONE);)if(L++,S=u.sqr(S),L===l)throw new Error("Cannot find square root");let R=D<<BigInt(l-L-1),T=u.pow(y,R);l=L,y=u.sqr(T),p=u.mul(p,y),m=u.mul(m,T)}return m}}function Vn(e){return e%Xe===Pe?en:e%Je===Qe?Dn:e%tn===qn?kn(e):nn(e)}var Mn=["create","isValid","is0","neg","inv","sqrt","sqr","eql","add","sub","mul","pow","div","addN","subN","mulN","sqrN"];function pe(e){let t={ORDER:"bigint",BYTES:"number",BITS:"number"},r=Mn.reduce((n,o)=>(n[o]="function",n),t);if(ht(e,r),Lt(e.BYTES,"BYTES"),Lt(e.BITS,"BITS"),e.BYTES<1||e.BITS<1)throw new Error("invalid field: expected BYTES/BITS > 0");if(e.ORDER<=D)throw new Error("invalid field: expected ORDER > 1, got "+e.ORDER);return e}function jn(e,t,r){let n=e;if(r<K)throw new Error("invalid exponent, negatives unsupported");if(r===K)return n.ONE;if(r===D)return t;let o=n.ONE,s=t;for(;r>K;)r&D&&(o=n.mul(o,s)),s=n.sqr(s),r>>=D;return o}function zt(e,t,r=!1){let n=e,o=new Array(t.length).fill(r?n.ZERO:void 0),s=t.reduce((i,f,a)=>n.is0(f)?i:(o[a]=i,n.mul(i,f)),n.ONE),c=n.inv(s);return t.reduceRight((i,f,a)=>n.is0(f)?i:(o[a]=n.mul(i,o[a]),n.mul(i,f)),c),o}function Ge(e,t){let r=e,n=(r.ORDER-D)/dt,o=r.pow(t,n),s=r.eql(o,r.ONE),c=r.eql(o,r.ZERO),i=r.eql(o,r.neg(r.ONE));if(!s&&!c&&!i)throw new Error("invalid Legendre symbol result");return s?1:c?0:-1}function Zn(e,t){if(t!==void 0&&ie(t),e<=K)throw new Error("invalid n length: expected positive n, got "+e);if(t!==void 0&&t<1)throw new Error("invalid n length: expected positive bit length, got "+t);let r=yt(e);if(t!==void 0&&t<r)throw new Error(`invalid n length: expected bit length (${r}) >= n.length (${t})`);let n=t!==void 0?t:r,o=Math.ceil(n/8);return{nBitLength:n,nByteLength:o}}var We=new WeakMap,Kt=class{ORDER;BITS;BYTES;isLE;ZERO=K;ONE=D;_lengths;_mod;constructor(t,r={}){if(t<=D)throw new Error("invalid field: expected ORDER > 1, got "+t);let n;this.isLE=!1,r!=null&&typeof r=="object"&&(typeof r.BITS=="number"&&(n=r.BITS),typeof r.sqrt=="function"&&Object.defineProperty(this,"sqrt",{value:r.sqrt,enumerable:!0}),typeof r.isLE=="boolean"&&(this.isLE=r.isLE),r.allowedLengths&&(this._lengths=Object.freeze(r.allowedLengths.slice())),typeof r.modFromBytes=="boolean"&&(this._mod=r.modFromBytes));let{nBitLength:o,nByteLength:s}=Zn(t,n);if(s>2048)throw new Error("invalid field: expected ORDER of <= 2048 bytes");this.ORDER=t,this.BITS=o,this.BYTES=s,Object.freeze(this)}create(t){return G(t,this.ORDER)}isValid(t){if(typeof t!="bigint")throw new TypeError("invalid field element: expected bigint, got "+typeof t);return K<=t&&t<this.ORDER}is0(t){return t===K}isValidNot0(t){return!this.is0(t)&&this.isValid(t)}isOdd(t){return(t&D)===D}neg(t){return G(-t,this.ORDER)}eql(t,r){return t===r}sqr(t){return G(t*t,this.ORDER)}add(t,r){return G(t+r,this.ORDER)}sub(t,r){return G(t-r,this.ORDER)}mul(t,r){return G(t*r,this.ORDER)}pow(t,r){return jn(this,t,r)}div(t,r){return G(t*$e(r,this.ORDER),this.ORDER)}sqrN(t){return t*t}addN(t,r){return t+r}subN(t,r){return t-r}mulN(t,r){return t*r}inv(t){return $e(t,this.ORDER)}sqrt(t){let r=We.get(this);return r||We.set(this,r=Vn(this.ORDER)),r(this,t)}toBytes(t){return this.isLE?le(t,this.BYTES):Zt(t,this.BYTES)}fromBytes(t,r=!1){k(t);let{_lengths:n,BYTES:o,isLE:s,ORDER:c,_mod:i}=this;if(n){if(t.length<1||!n.includes(t.length)||t.length>o)throw new Error("Field.fromBytes: expected "+n+" bytes, got "+t.length);let a=new Uint8Array(o);a.set(t,s?0:a.length-t.length),t=a}if(t.length!==o)throw new Error("Field.fromBytes: expected "+o+" bytes, got "+t.length);let f=s?ue(t):wt(t);if(i&&(f=G(f,c)),!r&&!this.isValid(f))throw new Error("invalid field element: outside of range 0..ORDER");return f}invertBatch(t){return zt(this,t)}cmov(t,r,n){return lt(n,"condition"),n?r:t}};Object.freeze(Kt.prototype);function Yt(e,t={}){return new Kt(e,t)}function rn(e){if(typeof e!="bigint")throw new Error("field order must be bigint");if(e<=D)throw new Error("field order must be greater than 1");let t=yt(e-D);return Math.ceil(t/8)}function ge(e){let t=rn(e);return t+Math.ceil(t/2)}function on(e,t,r=!1){k(e);let n=e.length,o=rn(t),s=Math.max(ge(t),16);if(n<s||n>1024)throw new Error("expected "+s+"-1024 bytes of input, got "+n);let c=r?ue(e):wt(e),i=G(c,t-D)+D;return r?le(i,o):Zt(i,o)}var mt=BigInt(0),pt=BigInt(1);function Ot(e,t){let r=t.negate();return e?r:t}function ye(e,t){let r=zt(e.Fp,t.map(n=>n.Z));return t.map((n,o)=>e.fromAffine(n.toAffine(r[o])))}function an(e,t){if(!Number.isSafeInteger(e)||e<=0||e>t)throw new Error("invalid window size, expected [1.."+t+"], got W="+e)}function be(e,t){an(e,t);let r=Math.ceil(t/e)+1,n=2**(e-1),o=2**e,s=Rt(e),c=BigInt(e);return{windows:r,windowSize:n,mask:s,maxNumber:o,shiftBy:c}}function sn(e,t,r){let{windowSize:n,mask:o,maxNumber:s,shiftBy:c}=r,i=Number(e&o),f=e>>c;i>n&&(i-=s,f+=pt);let a=t*n,u=a+Math.abs(i)-1,l=i===0,y=i<0,p=t%2!==0;return{nextN:f,offset:u,isZero:l,isNeg:y,isNegF:p,offsetF:a}}var xe=new WeakMap,un=new WeakMap;function we(e){return un.get(e)||1}function fn(e){if(e!==mt)throw new Error("invalid wNAF")}var $t=class{BASE;ZERO;Fn;bits;constructor(t,r){this.BASE=t.BASE,this.ZERO=t.ZERO,this.Fn=t.Fn,this.bits=r}_unsafeLadder(t,r,n=this.ZERO){let o=t;for(;r>mt;)r&pt&&(n=n.add(o)),o=o.double(),r>>=pt;return n}precomputeWindow(t,r){let{windows:n,windowSize:o}=be(r,this.bits),s=[],c=t,i=c;for(let f=0;f<n;f++){i=c,s.push(i);for(let a=1;a<o;a++)i=i.add(c),s.push(i);c=i.double()}return s}wNAF(t,r,n){if(!this.Fn.isValid(n))throw new Error("invalid scalar");let o=this.ZERO,s=this.BASE,c=be(t,this.bits);for(let i=0;i<c.windows;i++){let{nextN:f,offset:a,isZero:u,isNeg:l,isNegF:y,offsetF:p}=sn(n,i,c);n=f,u?s=s.add(Ot(y,r[p])):o=o.add(Ot(l,r[a]))}return fn(n),{p:o,f:s}}wNAFUnsafe(t,r,n,o=this.ZERO){let s=be(t,this.bits);for(let c=0;c<s.windows&&n!==mt;c++){let{nextN:i,offset:f,isZero:a,isNeg:u}=sn(n,c,s);if(n=i,!a){let l=r[f];o=o.add(u?l.negate():l)}}return fn(n),o}getPrecomputes(t,r,n){let o=xe.get(r);return o||(o=this.precomputeWindow(r,t),t!==1&&(typeof n=="function"&&(o=n(o)),xe.set(r,o))),o}cached(t,r,n){let o=we(t);return this.wNAF(o,this.getPrecomputes(o,t,n),r)}unsafe(t,r,n,o){let s=we(t);return s===1?this._unsafeLadder(t,r,o):this.wNAFUnsafe(s,this.getPrecomputes(s,t,n),r,o)}createCache(t,r){an(r,this.bits),un.set(t,r),xe.delete(t)}hasCache(t){return we(t)!==1}};function ln(e,t,r,n){let o=t,s=e.ZERO,c=e.ZERO;for(;r>mt||n>mt;)r&pt&&(s=s.add(o)),n&pt&&(c=c.add(o)),o=o.double(),r>>=pt,n>>=pt;return{p1:s,p2:c}}function cn(e,t,r){if(t){if(t.ORDER!==e)throw new Error("Field.ORDER must match order: Fp == p, Fn == n");return pe(t),t}else return Yt(e,{isLE:r})}function hn(e,t,r={},n){if(n===void 0&&(n=e==="edwards"),!t||typeof t!="object")throw new Error(`expected valid ${e} CURVE object`);for(let f of["p","n","h"]){let a=t[f];if(!(typeof a=="bigint"&&a>mt))throw new Error(`CURVE.${f} must be positive bigint`)}let o=cn(t.p,r.Fp,n),s=cn(t.n,r.Fn,n),i=["Gx","Gy","a",e==="weierstrass"?"b":"d"];for(let f of i)if(!o.isValid(t[f]))throw new Error(`CURVE.${f} must be valid field element of CURVE.Fp`);return t=Object.freeze(Object.assign({},t)),{CURVE:t,Fp:o,Fn:s}}function dn(e,t){return function(n){let o=e(n);return{secretKey:o,publicKey:t(o)}}}var Gt=class{oHash;iHash;blockLen;outputLen;canXOF=!1;finished=!1;destroyed=!1;constructor(t,r){if(Ht(t),P(r,void 0,"key"),this.iHash=t.create(),typeof this.iHash.update!="function")throw new Error("Expected instance of class which extends utils.Hash");this.blockLen=this.iHash.blockLen,this.outputLen=this.iHash.outputLen;let n=this.blockLen,o=new Uint8Array(n);o.set(r.length>n?t.create().update(r).digest():r);for(let s=0;s<o.length;s++)o[s]^=54;this.iHash.update(o),this.oHash=t.create();for(let s=0;s<o.length;s++)o[s]^=106;this.oHash.update(o),ut(o)}update(t){return xt(this),this.iHash.update(t),this}digestInto(t){xt(this),Ct(t,this),this.finished=!0;let r=t.subarray(0,this.outputLen);this.iHash.digestInto(r),this.oHash.update(r),this.oHash.digestInto(r),this.destroy()}digest(){let t=new Uint8Array(this.oHash.outputLen);return this.digestInto(t),t}_cloneInto(t){t||=Object.create(Object.getPrototypeOf(this),{});let{oHash:r,iHash:n,finished:o,destroyed:s,blockLen:c,outputLen:i}=this;return t=t,t.finished=o,t.destroyed=s,t.blockLen=c,t.outputLen=i,t.oHash=r._cloneInto(t.oHash),t.iHash=n._cloneInto(t.iHash),t}clone(){return this._cloneInto()}destroy(){this.destroyed=!0,this.oHash.destroy(),this.iHash.destroy()}},pn=(()=>{let e=((t,r,n)=>new Gt(t,r).update(n).digest());return e.create=(t,r)=>new Gt(t,r),e})();var gn=(e,t)=>(e+(e>=0?t:-t)/bn)/t;function Kn(e,t,r){he("scalar",e,X,r);let[[n,o],[s,c]]=t,i=gn(c*e,r),f=gn(-o*e,r),a=e-i*n-f*s,u=-i*o-f*c,l=a<X,y=u<X;l&&(a=-a),y&&(u=-u);let p=Rt(Math.ceil(yt(r)/2))+at;if(a<X||a>=p||u<X||u>=p)throw new Error("splitScalar (endomorphism): failed for k");return{k1neg:l,k1:a,k2neg:y,k2:u}}function Ee(e){if(!["compact","recovered","der"].includes(e))throw new Error('Signature format must be "compact", "recovered", or "der"');return e}function me(e,t){ht(e);let r={};for(let n of Object.keys(t))r[n]=e[n]===void 0?t[n]:e[n];return lt(r.lowS,"lowS"),lt(r.prehash,"prehash"),r.format!==void 0&&Ee(r.format),r}var Be=class extends Error{constructor(t=""){super(t)}},W={Err:Be,_tlv:{encode:(e,t)=>{let{Err:r}=W;if(Lt(e,"tag"),e<0||e>255)throw new r("tlv.encode: wrong tag");if(typeof t!="string")throw new TypeError('"data" expected string, got type='+typeof t);if(t.length&1)throw new r("tlv.encode: unpadded data");let n=t.length/2,o=Tt(n);if(o.length/2&128)throw new r("tlv.encode: long form length too big");let s=n>127?Tt(o.length/2|128):"";return Tt(e)+s+o+t},decode(e,t){let{Err:r}=W;t=k(t,void 0,"DER data");let n=0;if(e<0||e>255)throw new r("tlv.encode: wrong tag");if(t.length<2||t[n++]!==e)throw new r("tlv.decode: wrong tlv");let o=t[n++],s=!!(o&128),c=0;if(!s)c=o;else{let f=o&127;if(!f)throw new r("tlv.decode(long): indefinite length not supported");if(f>4)throw new r("tlv.decode(long): byte length is too big");let a=t.subarray(n,n+f);if(a.length!==f)throw new r("tlv.decode: length bytes not complete");if(a[0]===0)throw new r("tlv.decode(long): zero leftmost byte");for(let u of a)c=c<<8|u;if(n+=f,c<128)throw new r("tlv.decode(long): not minimal encoding")}let i=t.subarray(n,n+c);if(i.length!==c)throw new r("tlv.decode: wrong value length");return{v:i,l:t.subarray(n+c)}}},_int:{encode(e){let{Err:t}=W;if(jt(e),e<X)throw new t("integer: negative integers are not allowed");let r=Tt(e);if(Number.parseInt(r[0],16)&8&&(r="00"+r),r.length&1)throw new t("unexpected DER parsing assertion: unpadded hex");return r},decode(e){let{Err:t}=W;if(e.length<1)throw new t("invalid signature integer: empty");if(e[0]&128)throw new t("invalid signature integer: negative");if(e.length>1&&e[0]===0&&!(e[1]&128))throw new t("invalid signature integer: unnecessary leading zero");return wt(e)}},toSig(e){let{Err:t,_int:r,_tlv:n}=W,o=k(e,void 0,"signature"),{v:s,l:c}=n.decode(48,o);if(c.length)throw new t("invalid signature: left bytes after parsing");let{v:i,l:f}=n.decode(2,s),{v:a,l:u}=n.decode(2,f);if(u.length)throw new t("invalid signature: left bytes after parsing");return{r:r.decode(i),s:r.decode(a)}},hexFromSig(e){let{_tlv:t,_int:r}=W,n=t.encode(2,r.encode(e.r)),o=t.encode(2,r.encode(e.s)),s=n+o;return t.encode(48,s)}};Object.freeze(W._tlv);Object.freeze(W._int);Object.freeze(W);var X=BigInt(0),at=BigInt(1),bn=BigInt(2),Wt=BigInt(3),zn=BigInt(4);function xn(e,t={}){let r=hn("weierstrass",e,t),n=r.Fp,o=r.Fn,s=r.CURVE,{h:c,n:i}=s;ht(t,{},{allowInfinityPoint:"boolean",clearCofactor:"function",isTorsionFree:"function",fromBytes:"function",toBytes:"function",endo:"object"});let{endo:f,allowInfinityPoint:a}=t;if(f&&(!n.is0(s.a)||typeof f.beta!="bigint"||!Array.isArray(f.basises)))throw new Error('invalid endo: expected "beta": bigint and "basises": array');let u=yn(n,o);function l(){if(!n.isOdd)throw new Error("compression is not supported: Field does not have .isOdd()")}function y(C,d,E){if(a&&d.is0())return Uint8Array.of(0);let{x:v,y:g}=d.toAffine(),h=n.toBytes(v);if(lt(E,"isCompressed"),E){l();let b=!n.isOdd(g);return rt(wn(b),h)}else return rt(Uint8Array.of(4),h,n.toBytes(g))}function p(C){k(C,void 0,"Point");let{publicKey:d,publicKeyUncompressed:E}=u,v=C.length,g=C[0],h=C.subarray(1);if(a&&v===1&&g===0)return{x:n.ZERO,y:n.ZERO};if(v===d&&(g===2||g===3)){let b=n.fromBytes(h);if(!n.isValid(b))throw new Error("bad point: is not on curve, wrong x");let w=S(b),x;try{x=n.sqrt(w)}catch(U){let I=U instanceof Error?": "+U.message:"";throw new Error("bad point: is not on curve, sqrt error"+I)}l();let B=n.isOdd(x);return(g&1)===1!==B&&(x=n.neg(x)),{x:b,y:x}}else if(v===E&&g===4){let b=n.BYTES,w=n.fromBytes(h.subarray(0,b)),x=n.fromBytes(h.subarray(b,b*2));if(!R(w,x))throw new Error("bad point: is not on curve");return{x:w,y:x}}else throw new Error(`bad point: got length ${v}, expected compressed=${d} or uncompressed=${E}`)}let m=t.toBytes===void 0?y:t.toBytes,L=t.fromBytes===void 0?p:t.fromBytes;function S(C){let d=n.sqr(C),E=n.mul(d,C);return n.add(n.add(E,n.mul(C,s.a)),s.b)}function R(C,d){let E=n.sqr(d),v=S(C);return n.eql(E,v)}if(!R(s.Gx,s.Gy))throw new Error("bad curve params: generator point");let T=n.mul(n.pow(s.a,Wt),zn),z=n.mul(n.sqr(s.b),BigInt(27));if(n.is0(n.add(T,z)))throw new Error("bad curve params: a or b");function q(C,d,E=!1){if(!n.isValid(d)||E&&n.is0(d))throw new Error(`bad point coordinate ${C}`);return d}function H(C){if(!(C instanceof _))throw new Error("Weierstrass Point expected")}function J(C){if(!f||!f.basises)throw new Error("no endo");return Kn(C,f.basises,o.ORDER)}function st(C,d,E,v,g){return E=new _(n.mul(E.X,C),E.Y,E.Z),d=Ot(v,d),E=Ot(g,E),d.add(E)}class _{static BASE=new _(s.Gx,s.Gy,n.ONE);static ZERO=new _(n.ZERO,n.ONE,n.ZERO);static Fp=n;static Fn=o;X;Y;Z;constructor(d,E,v){this.X=q("x",d),this.Y=q("y",E,!0),this.Z=q("z",v),Object.freeze(this)}static CURVE(){return s}static fromAffine(d){let{x:E,y:v}=d||{};if(!d||!n.isValid(E)||!n.isValid(v))throw new Error("invalid affine point");if(d instanceof _)throw new Error("projective point not allowed");return n.is0(E)&&n.is0(v)?_.ZERO:new _(E,v,n.ONE)}static fromBytes(d){let E=_.fromAffine(L(k(d,void 0,"point")));return E.assertValidity(),E}static fromHex(d){return _.fromBytes(Mt(d))}get x(){return this.toAffine().x}get y(){return this.toAffine().y}precompute(d=8,E=!0){return tt.createCache(this,d),E||this.multiply(Wt),this}assertValidity(){let d=this;if(d.is0()){if(t.allowInfinityPoint&&n.is0(d.X)&&n.eql(d.Y,n.ONE)&&n.is0(d.Z))return;throw new Error("bad point: ZERO")}let{x:E,y:v}=d.toAffine();if(!n.isValid(E)||!n.isValid(v))throw new Error("bad point: x or y not field elements");if(!R(E,v))throw new Error("bad point: equation left != right");if(!d.isTorsionFree())throw new Error("bad point: not in prime-order subgroup")}hasEvenY(){let{y:d}=this.toAffine();if(!n.isOdd)throw new Error("Field doesn't support isOdd");return!n.isOdd(d)}equals(d){H(d);let{X:E,Y:v,Z:g}=this,{X:h,Y:b,Z:w}=d,x=n.eql(n.mul(E,w),n.mul(h,g)),B=n.eql(n.mul(v,w),n.mul(b,g));return x&&B}negate(){return new _(this.X,n.neg(this.Y),this.Z)}double(){let{a:d,b:E}=s,v=n.mul(E,Wt),{X:g,Y:h,Z:b}=this,w=n.ZERO,x=n.ZERO,B=n.ZERO,A=n.mul(g,g),U=n.mul(h,h),I=n.mul(b,b),O=n.mul(g,h);return O=n.add(O,O),B=n.mul(g,b),B=n.add(B,B),w=n.mul(d,B),x=n.mul(v,I),x=n.add(w,x),w=n.sub(U,x),x=n.add(U,x),x=n.mul(w,x),w=n.mul(O,w),B=n.mul(v,B),I=n.mul(d,I),O=n.sub(A,I),O=n.mul(d,O),O=n.add(O,B),B=n.add(A,A),A=n.add(B,A),A=n.add(A,I),A=n.mul(A,O),x=n.add(x,A),I=n.mul(h,b),I=n.add(I,I),A=n.mul(I,O),w=n.sub(w,A),B=n.mul(I,U),B=n.add(B,B),B=n.add(B,B),new _(w,x,B)}add(d){H(d);let{X:E,Y:v,Z:g}=this,{X:h,Y:b,Z:w}=d,x=n.ZERO,B=n.ZERO,A=n.ZERO,U=s.a,I=n.mul(s.b,Wt),O=n.mul(E,h),V=n.mul(v,b),M=n.mul(g,w),j=n.add(E,v),N=n.add(h,b);j=n.mul(j,N),N=n.add(O,V),j=n.sub(j,N),N=n.add(E,g);let Y=n.add(h,w);return N=n.mul(N,Y),Y=n.add(O,M),N=n.sub(N,Y),Y=n.add(v,g),x=n.add(b,w),Y=n.mul(Y,x),x=n.add(V,M),Y=n.sub(Y,x),A=n.mul(U,N),x=n.mul(I,M),A=n.add(x,A),x=n.sub(V,A),A=n.add(V,A),B=n.mul(x,A),V=n.add(O,O),V=n.add(V,O),M=n.mul(U,M),N=n.mul(I,N),V=n.add(V,M),M=n.sub(O,M),M=n.mul(U,M),N=n.add(N,M),O=n.mul(V,N),B=n.add(B,O),O=n.mul(Y,N),x=n.mul(j,x),x=n.sub(x,O),O=n.mul(j,V),A=n.mul(Y,A),A=n.add(A,O),new _(x,B,A)}subtract(d){return H(d),this.add(d.negate())}is0(){return this.equals(_.ZERO)}multiply(d){let{endo:E}=t;if(!o.isValidNot0(d))throw new RangeError("invalid scalar: out of range");let v,g,h=b=>tt.cached(this,b,w=>ye(_,w));if(E){let{k1neg:b,k1:w,k2neg:x,k2:B}=J(d),{p:A,f:U}=h(w),{p:I,f:O}=h(B);g=U.add(O),v=st(E.beta,A,I,b,x)}else{let{p:b,f:w}=h(d);v=b,g=w}return ye(_,[v,g])[0]}multiplyUnsafe(d){let{endo:E}=t,v=this,g=d;if(!o.isValid(g))throw new RangeError("invalid scalar: out of range");if(g===X||v.is0())return _.ZERO;if(g===at)return v;if(tt.hasCache(this))return this.multiply(g);if(E){let{k1neg:h,k1:b,k2neg:w,k2:x}=J(g),{p1:B,p2:A}=ln(_,v,b,x);return st(E.beta,B,A,h,w)}else return tt.unsafe(v,g)}toAffine(d){let E=this,v=d,{X:g,Y:h,Z:b}=E;if(n.eql(b,n.ONE))return{x:g,y:h};let w=E.is0();v==null&&(v=w?n.ONE:n.inv(b));let x=n.mul(g,v),B=n.mul(h,v),A=n.mul(b,v);if(w)return{x:n.ZERO,y:n.ZERO};if(!n.eql(A,n.ONE))throw new Error("invZ was invalid");return{x,y:B}}isTorsionFree(){let{isTorsionFree:d}=t;return c===at?!0:d?d(_,this):tt.unsafe(this,i).is0()}clearCofactor(){let{clearCofactor:d}=t;return c===at?this:d?d(_,this):this.multiplyUnsafe(c)}isSmallOrder(){return c===at?this.is0():this.clearCofactor().is0()}toBytes(d=!0){return lt(d,"isCompressed"),this.assertValidity(),m(_,this,d)}toHex(d=!0){return fe(this.toBytes(d))}toString(){return`<Point ${this.is0()?"ZERO":this.toHex()}>`}}let it=o.BITS,tt=new $t(_,t.endo?Math.ceil(it/2):it);return it>=8&&_.BASE.precompute(8),Object.freeze(_.prototype),Object.freeze(_),_}function wn(e){return Uint8Array.of(e?2:3)}function yn(e,t){return{secretKey:t.BYTES,publicKey:1+e.BYTES,publicKeyUncompressed:1+2*e.BYTES,publicKeyHasPrefix:!0,signature:2*t.BYTES}}function Yn(e,t={}){let{Fn:r}=e,n=t.randomBytes===void 0?ae:t.randomBytes,o=Object.assign(yn(e.Fp,r),{seed:Math.max(ge(r.ORDER),16)});function s(p){try{let m=r.fromBytes(p);return r.isValidNot0(m)}catch{return!1}}function c(p,m){let{publicKey:L,publicKeyUncompressed:S}=o;try{let R=p.length;return m===!0&&R!==L||m===!1&&R!==S?!1:!!e.fromBytes(p)}catch{return!1}}function i(p){return p=p===void 0?n(o.seed):p,on(k(p,o.seed,"seed"),r.ORDER)}function f(p,m=!0){return e.BASE.multiply(r.fromBytes(p)).toBytes(m)}function a(p){let{secretKey:m,publicKey:L,publicKeyUncompressed:S}=o,R=r._lengths;if(!ce(p))return;let T=k(p,void 0,"key").length,z=T===L||T===S,q=T===m||!!R?.includes(T);if(!(z&&q))return z}function u(p,m,L=!0){if(a(p)===!0)throw new Error("first arg must be private key");if(a(m)===!1)throw new Error("second arg must be public key");let S=r.fromBytes(p);return e.fromBytes(m).multiply(S).toBytes(L)}let l={isValidSecretKey:s,isValidPublicKey:c,randomSecretKey:i},y=dn(i,f);return Object.freeze(l),Object.freeze(o),Object.freeze({getPublicKey:f,getSharedSecret:u,keygen:y,Point:e,utils:l,lengths:o})}function mn(e,t,r={}){let n=t;Ht(n),ht(r,{},{hmac:"function",lowS:"boolean",randomBytes:"function",bits2int:"function",bits2int_modN:"function"}),r=Object.assign({},r);let o=r.randomBytes===void 0?ae:r.randomBytes,s=r.hmac===void 0?(g,h)=>pn(n,g,h):r.hmac,{Fp:c,Fn:i}=e,{ORDER:f,BITS:a}=i,{keygen:u,getPublicKey:l,getSharedSecret:y,utils:p,lengths:m}=Yn(e,r),L={prehash:!0,lowS:typeof r.lowS=="boolean"?r.lowS:!0,format:"compact",extraEntropy:!1},S=f*bn+at<c.ORDER;function R(g){let h=f>>at;return g>h}function T(g,h){if(!i.isValidNot0(h))throw new Error(`invalid signature ${g}: out of range 1..Point.Fn.ORDER`);return h}function z(){if(S)throw new Error('"recovered" sig type is not supported for cofactor >2 curves')}function q(g,h){Ee(h);let b=m.signature,w=h==="compact"?b:h==="recovered"?b+1:void 0;return k(g,w)}class H{r;s;recovery;constructor(h,b,w){if(this.r=T("r",h),this.s=T("s",b),w!=null){if(z(),![0,1,2,3].includes(w))throw new Error("invalid recovery id");this.recovery=w}Object.freeze(this)}static fromBytes(h,b=L.format){q(h,b);let w;if(b==="der"){let{r:U,s:I}=W.toSig(k(h));return new H(U,I)}b==="recovered"&&(w=h[0],b="compact",h=h.subarray(1));let x=m.signature/2,B=h.subarray(0,x),A=h.subarray(x,x*2);return new H(i.fromBytes(B),i.fromBytes(A),w)}static fromHex(h,b){return this.fromBytes(Mt(h),b)}assertRecovery(){let{recovery:h}=this;if(h==null)throw new Error("invalid recovery id: must be present");return h}addRecoveryBit(h){return new H(this.r,this.s,h)}recoverPublicKey(h){let{r:b,s:w}=this,x=this.assertRecovery(),B=x===2||x===3?b+f:b;if(!c.isValid(B))throw new Error("invalid recovery id: sig.r+curve.n != R.x");let A=c.toBytes(B),U=e.fromBytes(rt(wn((x&1)===0),A)),I=i.inv(B),O=st(k(h,void 0,"msgHash")),V=i.create(-O*I),M=i.create(w*I),j=e.BASE.multiplyUnsafe(V).add(U.multiplyUnsafe(M));if(j.is0())throw new Error("invalid recovery: point at infinify");return j.assertValidity(),j}hasHighS(){return R(this.s)}toBytes(h=L.format){if(Ee(h),h==="der")return Mt(W.hexFromSig(this));let{r:b,s:w}=this,x=i.toBytes(b),B=i.toBytes(w);return h==="recovered"?(z(),rt(Uint8Array.of(this.assertRecovery()),x,B)):rt(x,B)}toHex(h){return fe(this.toBytes(h))}}Object.freeze(H.prototype),Object.freeze(H);let J=r.bits2int===void 0?function(h){if(h.length>8192)throw new Error("input is too large");let b=wt(h),w=h.length*8-a;return w>0?b>>BigInt(w):b}:r.bits2int,st=r.bits2int_modN===void 0?function(h){return i.create(J(h))}:r.bits2int_modN,_=Rt(a);function it(g){return he("num < 2^"+a,g,X,_),i.toBytes(g)}function tt(g,h){return k(g,void 0,"message"),h?k(n(g),void 0,"prehashed message"):g}function C(g,h,b){let{lowS:w,prehash:x,extraEntropy:B}=me(b,L);g=tt(g,x);let A=st(g),U=i.fromBytes(h);if(!i.isValidNot0(U))throw new Error("invalid private key");let I=[it(U),it(A)];if(B!=null&&B!==!1){let j=B===!0?o(m.secretKey):B;I.push(k(j,void 0,"extraEntropy"))}let O=rt(...I),V=A;function M(j){let N=J(j);if(!i.isValidNot0(N))return;let Y=i.inv(N),bt=e.BASE.multiply(N).toAffine(),St=i.create(bt.x);if(St===X)return;let Ft=i.create(Y*i.create(V+St*U));if(Ft===X)return;let Ce=(bt.x===St?0:2)|Number(bt.y&at),Ne=Ft;return w&&R(Ft)&&(Ne=i.neg(Ft),Ce^=1),new H(St,Ne,S?void 0:Ce)}return{seed:O,k2sig:M}}function d(g,h,b={}){let{seed:w,k2sig:x}=C(g,h,b);return Ye(n.outputLen,i.BYTES,s)(w,x).toBytes(b.format)}function E(g,h,b,w={}){let{lowS:x,prehash:B,format:A}=me(w,L);if(b=k(b,void 0,"publicKey"),h=tt(h,B),!ce(g)){let U=g instanceof H?", use sig.toBytes()":"";throw new Error("verify expects Uint8Array signature"+U)}q(g,A);try{let U=H.fromBytes(g,A),I=e.fromBytes(b);if(x&&U.hasHighS())return!1;let{r:O,s:V}=U,M=st(h),j=i.inv(V),N=i.create(M*j),Y=i.create(O*j),bt=e.BASE.multiplyUnsafe(N).add(I.multiplyUnsafe(Y));return bt.is0()?!1:i.create(bt.x)===O}catch{return!1}}function v(g,h,b={}){let{prehash:w}=me(b,L);return h=tt(h,w),H.fromBytes(g,"recovered").recoverPublicKey(h).toBytes()}return Object.freeze({keygen:u,getPublicKey:l,getSharedSecret:y,utils:p,lengths:m,Point:e,sign:d,verify:E,recoverPublicKey:v,Signature:H,hash:n})}var $n={p:BigInt("0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff"),n:BigInt("0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551"),h:BigInt(1),a:BigInt("0xffffffff00000001000000000000000000000000fffffffffffffffffffffffc"),b:BigInt("0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b"),Gx:BigInt("0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"),Gy:BigInt("0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5")};var Gn=xn($n),ve=mn(Gn,At);function Wn(e){return e instanceof Uint8Array||ArrayBuffer.isView(e)&&e.constructor.name==="Uint8Array"&&"BYTES_PER_ELEMENT"in e&&e.BYTES_PER_ELEMENT===1}function Pn(e){if(typeof e!="boolean")throw new TypeError(`boolean expected, not ${e}`)}function Se(e){if(typeof e!="number")throw new TypeError("number expected, got "+typeof e);if(!Number.isSafeInteger(e)||e<0)throw new RangeError("positive integer expected, got "+e)}function Z(e,t,r=""){let n=Wn(e),o=e?.length,s=t!==void 0;if(!n||s&&o!==t){let c=r&&`"${r}" `,i=s?` of length ${t}`:"",f=n?`length=${o}`:`type=${typeof e}`,a=c+"expected Uint8Array"+i+", got "+f;throw n?new RangeError(a):new TypeError(a)}return e}function Ae(e,t=!0){if(e.destroyed)throw new Error("Hash instance has been destroyed");if(t&&e.finished)throw new Error("Hash#digest() has already been called")}function Le(e,t,r=!1){Z(e,void 0,"output");let n=t.outputLen;if(e.length<n)throw new RangeError("digestInto() expects output buffer of length at least "+n);if(r&&!Bt(e))throw new Error("invalid output, must be aligned")}function En(e){return new Uint8Array(e.buffer,e.byteOffset,e.byteLength)}function ot(e){return new Uint32Array(e.buffer,e.byteOffset,Math.floor(e.byteLength/4))}function Q(...e){for(let t=0;t<e.length;t++)e[t].fill(0)}function Et(e){return new DataView(e.buffer,e.byteOffset,e.byteLength)}var Pt=new Uint8Array(new Uint32Array([287454020]).buffer)[0]===68,Te=e=>e<<24&4278190080|e<<8&16711680|e>>>8&65280|e>>>24&255,F=Pt?e=>e:e=>Te(e)>>>0,Xn=e=>{for(let t=0;t<e.length;t++)e[t]=Te(e[t]);return e},_t=Pt?e=>e:Xn;function Bn(e,t){if(e.length!==t.length)return!1;let r=0;for(let n=0;n<e.length;n++)r|=e[n]^t[n];return r===0}function Re(e,t,r){let n=t,o=r||(()=>[]),s=(i,f)=>n(f,...o(i)).update(i).digest(),c=n(new Uint8Array(e),...o(new Uint8Array(0)));return s.outputLen=c.outputLen,s.blockLen=c.blockLen,s.create=(i,...f)=>n(i,...f),s}var vn=(e,t)=>{function r(n,...o){if(Z(n,void 0,"key"),e.nonceLength!==void 0){let u=o[0];Z(u,e.varSizeNonce?void 0:e.nonceLength,"nonce")}let s=e.tagLength;s&&o[1]!==void 0&&Z(o[1],void 0,"AAD");let c=t(n,...o),i=(u,l)=>{if(l!==void 0){if(u!==2)throw new Error("cipher output not supported");Z(l,void 0,"output")}},f=!1;return{encrypt(u,l){if(f)throw new Error("cannot encrypt() twice with same key + nonce");return f=!0,Z(u),i(c.encrypt.length,l),c.encrypt(u,l)},decrypt(u,l){if(Z(u),s&&u.length<s)throw new Error('"ciphertext" expected length bigger than tagLength='+s);return i(c.decrypt.length,l),c.decrypt(u,l)}}}return Object.assign(r,e),r};function Sn(e,t,r=!0){if(t===void 0)return new Uint8Array(e);if(Z(t,void 0,"output"),t.length!==e)throw new Error('"output" expected Uint8Array of length '+e+", got: "+t.length);if(r&&!Bt(t))throw new Error("invalid output, must be aligned");return t}function An(e,t,r){Se(e),Se(t),Pn(r);let n=new Uint8Array(16),o=Et(n);return o.setBigUint64(0,BigInt(t),r),o.setBigUint64(8,BigInt(e),r),n}function Bt(e){return e.byteOffset%4===0}function gt(e){return Uint8Array.from(Z(e))}var vt=16,Ln=new Uint8Array(16),It=ot(Ln),Qn=225,Jn=(e,t,r,n)=>{let o=n&1;return{s3:r<<31|n>>>1,s2:t<<31|r>>>1,s1:e<<31|t>>>1,s0:e>>>1^Qn<<24&-(o&1)}},Xt=e=>(e>>>0&255)<<24|(e>>>8&255)<<16|(e>>>16&255)<<8|e>>>24&255|0;var tr=e=>e>64*1024?8:e>1024?4:2,Oe=class{blockLen=vt;outputLen=vt;s0=0;s1=0;s2=0;s3=0;finished=!1;destroyed=!1;t;W;windowSize;constructor(t,r){Z(t,16,"key"),t=gt(t);let n=Et(t),o=n.getUint32(0,!1),s=n.getUint32(4,!1),c=n.getUint32(8,!1),i=n.getUint32(12,!1),f=[];for(let m=0;m<128;m++)f.push({s0:Xt(o),s1:Xt(s),s2:Xt(c),s3:Xt(i)}),{s0:o,s1:s,s2:c,s3:i}=Jn(o,s,c,i);let a=tr(r||1024);if(![1,2,4,8].includes(a))throw new Error("ghash: invalid window size, expected 2, 4 or 8");this.W=a;let l=128/a,y=this.windowSize=2**a,p=[];for(let m=0;m<l;m++)for(let L=0;L<y;L++){let S=0,R=0,T=0,z=0;for(let q=0;q<a;q++){if(!(L>>>a-q-1&1))continue;let{s0:J,s1:st,s2:_,s3:it}=f[a*m+q];S^=J,R^=st,T^=_,z^=it}p.push({s0:S,s1:R,s2:T,s3:z})}this.t=p}_updateBlock(t,r,n,o){t^=this.s0,r^=this.s1,n^=this.s2,o^=this.s3;let{W:s,t:c,windowSize:i}=this,f=0,a=0,u=0,l=0,y=(1<<s)-1,p=0;for(let m of[t,r,n,o])for(let L=0;L<4;L++){let S=m>>>8*L&255;for(let R=8/s-1;R>=0;R--){let T=S>>>s*R&y,{s0:z,s1:q,s2:H,s3:J}=c[p*i+T];f^=z,a^=q,u^=H,l^=J,p+=1}}this.s0=f,this.s1=a,this.s2=u,this.s3=l}update(t){Ae(this),Z(t),t=gt(t);let r=ot(t),n=Math.floor(t.length/vt),o=t.length%vt;for(let s=0;s<n;s++)this._updateBlock(F(r[s*4+0]),F(r[s*4+1]),F(r[s*4+2]),F(r[s*4+3]));return o&&(Ln.set(t.subarray(n*vt)),this._updateBlock(F(It[0]),F(It[1]),F(It[2]),F(It[3])),Q(It)),this}destroy(){this.destroyed=!0;let{t}=this;for(let r of t)r.s0=0,r.s1=0,r.s2=0,r.s3=0}digestInto(t){Ae(this),Le(t,this,!0),this.finished=!0;let{s0:r,s1:n,s2:o,s3:s}=this,c=ot(t);c[0]=r,c[1]=n,c[2]=o,c[3]=s,_t(c)}digest(){let t=new Uint8Array(vt);return this.digestInto(t),this.destroy(),t}};var _e=Re(16,(e,t)=>new Oe(e,t),e=>[e.length]);var Ue=16,er=4,Qt=new Uint8Array(Ue);var nr=283;function rr(e){if(![16,24,32].includes(e.length))throw new Error('"aes key" expected Uint8Array of length 16/24/32, got length='+e.length)}function Fe(e){return e<<1^nr&-(e>>7)}function Tn(e,t){let r=0;for(;t>0;t>>=1)r^=e&-(t&1),e=Fe(e);return r}var or=(()=>{let e=new Uint8Array(256);for(let r=0,n=1;r<256;r++,n^=Fe(n))e[r]=n;let t=new Uint8Array(256);t[0]=99;for(let r=0;r<255;r++){let n=e[255-r];n|=n<<8,t[e[r]]=(n^n>>4^n>>5^n>>6^n>>7^99)&255}return Q(e),t})();var sr=e=>e<<24|e>>>8,Ie=e=>e<<8|e>>>24;function ir(e,t){if(e.length!==256)throw new Error("Wrong sbox length");let r=new Uint32Array(256).map((a,u)=>t(e[u])),n=r.map(Ie),o=n.map(Ie),s=o.map(Ie),c=new Uint32Array(256*256),i=new Uint32Array(256*256),f=new Uint16Array(256*256);for(let a=0;a<256;a++)for(let u=0;u<256;u++){let l=a*256+u;c[l]=r[a]^n[u],i[l]=o[a]^s[u],f[l]=e[a]<<8|e[u]}return{sbox:e,sbox2:f,T0:r,T1:n,T2:o,T3:s,T01:c,T23:i}}var On=ir(or,e=>Tn(e,3)<<24|e<<16|e<<8|Tn(e,2));var fr=(()=>{let e=new Uint8Array(16);for(let t=0,r=1;t<16;t++,r=Fe(r))e[t]=r;return e})();function cr(e){Z(e);let t=e.length;rr(e);let{sbox2:r}=On,n=[];(!Pt||!Bt(e))&&n.push(e=gt(e));let o=_t(ot(e)),s=o.length,c=f=>Ut(r,f,f,f,f),i=new Uint32Array(t+28);i.set(o);for(let f=s;f<i.length;f++){let a=i[f-1];f%s===0?a=c(sr(a))^fr[f/s-1]:s>6&&f%s===4&&(a=c(a)),i[f]=i[f-s]^a}return Q(...n),i}function Jt(e,t,r,n,o,s){return e[r<<8&65280|n>>>8&255]^t[o>>>8&65280|s>>>24&255]}function Ut(e,t,r,n,o){return e[t&255|r&65280]|e[n>>>16&255|o>>>16&65280]<<16}function Rn(e,t,r,n,o){let{sbox2:s,T01:c,T23:i}=On,f=0;t^=e[f++],r^=e[f++],n^=e[f++],o^=e[f++];let a=e.length/4-2;for(let m=0;m<a;m++){let L=e[f++]^Jt(c,i,t,r,n,o),S=e[f++]^Jt(c,i,r,n,o,t),R=e[f++]^Jt(c,i,n,o,t,r),T=e[f++]^Jt(c,i,o,t,r,n);t=L,r=S,n=R,o=T}let u=e[f++]^Ut(s,t,r,n,o),l=e[f++]^Ut(s,r,n,o,t),y=e[f++]^Ut(s,n,o,t,r),p=e[f++]^Ut(s,o,t,r,n);return{s0:u,s1:l,s2:y,s3:p}}function te(e,t,r,n,o){Z(r,Ue,"nonce"),Z(n),o=Sn(n.length,o);let s=r,c=ot(s),i=Et(s),f=ot(n),a=ot(o),u=t?0:12,l=n.length,y=i.getUint32(u,t),{s0:p,s1:m,s2:L,s3:S}=Rn(e,F(c[0]),F(c[1]),F(c[2]),F(c[3]));for(let T=0;T+4<=f.length;T+=4)a[T+0]=f[T+0]^F(p),a[T+1]=f[T+1]^F(m),a[T+2]=f[T+2]^F(L),a[T+3]=f[T+3]^F(S),y=y+1>>>0,i.setUint32(u,y,t),{s0:p,s1:m,s2:L,s3:S}=Rn(e,F(c[0]),F(c[1]),F(c[2]),F(c[3]));let R=Ue*Math.floor(f.length/er);if(R<l){let T=new Uint32Array([p,m,L,S]);_t(T);let z=En(T);for(let q=R,H=0;q<l;q++,H++)o[q]=n[q]^z[H];Q(T)}return o}function ar(e,t,r,n,o){let s=o?o.length:0,c=e.create(r,n.length+s);o&&c.update(o);let i=An(8*n.length,8*s,t);c.update(n),c.update(i);let f=c.digest();return Q(i),f}var He=vn({blockSize:16,nonceLength:12,tagLength:16,varSizeNonce:!0},function(t,r,n){if(r.length<8)throw new Error("aes/gcm: invalid nonce length");let o=16;function s(i,f,a){let u=ar(_e,!1,i,a,n);for(let l=0;l<f.length;l++)u[l]^=f[l];return u}function c(){let i=cr(t),f=Qt.slice(),a=Qt.slice();if(te(i,!1,a,a,f),r.length===12)a.set(r);else{let l=Qt.slice();Et(l).setBigUint64(8,BigInt(r.length*8),!1);let p=_e.create(f).update(r).update(l);p.digestInto(a),p.destroy()}let u=te(i,!1,a,Qt);return{xk:i,authKey:f,counter:a,tagMask:u}}return{encrypt(i){let{xk:f,authKey:a,counter:u,tagMask:l}=c(),y=new Uint8Array(i.length+o),p=[f,a,u,l];Bt(i)||p.push(i=gt(i)),te(f,!1,u,i,y.subarray(0,i.length));let m=s(a,l,y.subarray(0,y.length-o));return p.push(m),y.set(m,i.length),Q(...p),y},decrypt(i){let{xk:f,authKey:a,counter:u,tagMask:l}=c(),y=[f,a,l,u];Bt(i)||y.push(i=gt(i));let p=i.subarray(0,-o),m=i.subarray(-o),L=s(a,l,p);if(y.push(L),!Bn(L,m))throw Q(...y),new Error("aes/gcm: invalid ghash tag");let S=te(f,!1,u,p);return Q(...y),S}}});function _n(e){let t=atob(e),r=new Uint8Array(t.length);for(let n=0;n<t.length;n++)r[n]=t.charCodeAt(n);return r}function In(e){let t="",r=e.byteLength;for(let n=0;n<r;n++)t+=String.fromCharCode(e[n]);return btoa(t)}function ur(){let e=crypto.getRandomValues(new Uint8Array(32)),t=ve.getPublicKey(e,!1);return{privateKey:e,publicKeyBase64:In(t)}}function lr(e,t){let r=_n(t),o=ve.getSharedSecret(e,r).slice(1);return At(o)}function hr(e,t){let r=new TextEncoder().encode(e),n=crypto.getRandomValues(new Uint8Array(12)),s=He(t,n).encrypt(r),c=new Uint8Array(n.length+s.length);return c.set(n,0),c.set(s,n.length),In(c)}function dr(e,t){let r=_n(e),n=12;if(r.length<n)throw new Error("ciphertext too short");let o=r.slice(0,n),s=r.slice(n),i=He(t,o).decrypt(s);return new TextDecoder().decode(i)}function pr(e){let t=new TextEncoder().encode("fingerprint"),r=new Uint8Array(e.length+t.length);r.set(e,0),r.set(t,e.length);let n=At(r);return Array.from(n.slice(0,4)).map(o=>o.toString(16).padStart(2,"0")).join("").toUpperCase()}window.CryptoFallback={generateKeyPair:ur,deriveSharedKey:lr,encryptData:hr,decryptData:dr,getFingerprint:pr};})();
+  </script>
+
+  <!-- MAIN SCRIPT -->
+  <script>
+    // Global connection state
+    let ws = null;
+    let aesKey = null;
+    let aesKeyBytes = null;
+    let keys = null;
+    let isConnected = false;
+    let activeTab = 'control';
+    let isFallback = false; // check if we use pure JS fallback
+    
+    // Slide index variables
+    let currentSlide = 1;
+    let totalSlides = 1;
+    let slideImages = {}; // cache index -> base64
+
+    // Parse query params for auto fill
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('room') || '';
+      const passcode = params.get('passcode') || '';
+      
+      if (room) document.getElementById('room-input').value = room.toUpperCase();
+      if (passcode) document.getElementById('passcode-input').value = passcode;
+      
+      // Auto connect if parameters provided
+      if (room && passcode) {
+        startConnection();
+      }
+    });
+
+    // Helper functions for ArrayBuffer / Base64 conversions
+    function base64ToBytes(base64) {
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = "";
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    // Connect button click handler
+    document.getElementById('connect-btn').addEventListener('click', startConnection);
+    document.getElementById('cancel-conn-btn').addEventListener('click', disconnect);
+
+    async function startConnection() {
+      const room = document.getElementById('room-input').value.trim().toUpperCase();
+      const passcode = document.getElementById('passcode-input').value.trim();
+
+      if (!room || !passcode) {
+        alert('Please enter both Room ID and Passcode.');
+        return;
+      }
+
+      // Hide inputs, show status
+      document.getElementById('pairing-setup-form').style.display = 'none';
+      document.getElementById('pairing-status-panel').style.display = 'flex';
+      document.getElementById('fingerprint-display').style.display = 'none';
+      document.getElementById('status-spinner').style.display = 'block';
+      updateStatusText('Connecting to presentation laptop...');
+
+      // Check if secure context cryptography is available
+      if (typeof window.crypto === 'undefined' || typeof window.crypto.subtle === 'undefined' || typeof window.crypto.subtle.generateKey === 'undefined') {
+        console.warn("Secure Context Cryptography not available. Falling back to pure JS noble-curves bundle.");
+        isFallback = true;
+      } else {
+        isFallback = false;
+      }
+
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Connect to the same IP/Port that served the HTML file
+        const wsUrl = `${protocol}//${window.location.host}/signaling`;
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = async () => {
+          updateStatusText('Connected. Starting cryptographic handshake...');
+          try {
+            // 1. Generate P-256 ECDH Keypair
+            if (isFallback) {
+              keys = window.CryptoFallback.generateKeyPair();
+            } else {
+              keys = await window.crypto.subtle.generateKey(
+                { name: "ECDH", namedCurve: "P-256" },
+                true,
+                ["deriveKey", "deriveBits"]
+              );
+            }
+
+            // 2. Export our public key in raw 65-byte uncompressed format
+            let base64PubKey = "";
+            if (isFallback) {
+              base64PubKey = keys.publicKeyBase64;
+            } else {
+              const rawPubKey = await window.crypto.subtle.exportKey("raw", keys.publicKey);
+              base64PubKey = bytesToBase64(new Uint8Array(rawPubKey));
+            }
+
+            // 3. Send handshake message to Go server
+            const handshake = {
+              type: "handshake",
+              publicKey: base64PubKey
+            };
+            ws.send(JSON.stringify(handshake));
+          } catch (cryptoErr) {
+            console.error('[Crypto Error]', cryptoErr);
+            alert('Failed to initialize browser cryptography: ' + cryptoErr.message);
+            disconnect();
+          }
+        };
+
+        ws.onmessage = async (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            
+            if (data.type === "handshake") {
+              updateStatusText('Deriving symmetric session key...');
+              
+              // 4. Derive shared secret and import/derive GCM key
+              let fingerprintHex = "";
+              if (isFallback) {
+                aesKeyBytes = window.CryptoFallback.deriveSharedKey(keys.privateKey, data.publicKey);
+                aesKey = aesKeyBytes;
+                fingerprintHex = window.CryptoFallback.getFingerprint(aesKeyBytes);
+              } else {
+                const rawServerPubKey = base64ToBytes(data.publicKey);
+                const peerPubKey = await window.crypto.subtle.importKey(
+                  "raw",
+                  rawServerPubKey,
+                  { name: "ECDH", namedCurve: "P-256" },
+                  true,
+                  []
+                );
+
+                const sharedSecret = await window.crypto.subtle.deriveBits(
+                  { name: "ECDH", public: peerPubKey },
+                  keys.privateKey,
+                  256
+                );
+
+                aesKeyBytes = new Uint8Array(await window.crypto.subtle.digest("SHA-256", sharedSecret));
+                
+                aesKey = await window.crypto.subtle.importKey(
+                  "raw",
+                  aesKeyBytes,
+                  { name: "AES-GCM" },
+                  false,
+                  ["encrypt", "decrypt"]
+                );
+
+                const labelBytes = new TextEncoder().encode("fingerprint");
+                const fingerprintCombined = new Uint8Array(aesKeyBytes.length + labelBytes.length);
+                fingerprintCombined.set(aesKeyBytes, 0);
+                fingerprintCombined.set(labelBytes, aesKeyBytes.length);
+                const hashBuffer = await window.crypto.subtle.digest("SHA-256", fingerprintCombined);
+                const hashBytes = new Uint8Array(hashBuffer);
+                fingerprintHex = Array.from(hashBytes.slice(0, 4))
+                  .map(b => b.toString(16).padStart(2, "0"))
+                  .join("")
+                  .toUpperCase();
+              }
+
+              // Display Fingerprint and request user confirmation on Wails desktop
+              document.getElementById('status-spinner').style.display = 'none';
+              document.getElementById('fingerprint-display').style.display = 'flex';
+              document.getElementById('fingerprint-value').innerText = fingerprintHex;
+              updateStatusText('Pairing approval requested');
+
+              // Send pairing request wrapped in encrypted format
+              const identityPayload = JSON.stringify({
+                type: "pairing-request",
+                deviceName: "Mobile Web Browser"
+              });
+              
+              await sendEncryptedPayload(identityPayload);
+            } 
+            else if (data.type === "encrypted" && aesKey) {
+              // Decrypt and handle incoming messages
+              const decStr = await decryptData(data.ciphertext);
+              const payload = JSON.parse(decStr);
+
+              if (payload.type === "pairing-response") {
+                if (payload.status === "accepted") {
+                  isConnected = true;
+                  
+                  // Hide connect screen, show controller view
+                  document.getElementById('connect-view').classList.remove('active');
+                  document.getElementById('controller-view').classList.add('active');
+                  
+                  // Initialize slides and tab
+                  await sendControlCommand({ action: "request-slides" });
+                  await sendControlCommand({ action: "set-active-tab", tab: activeTab });
+                } else {
+                  alert("Pairing request was rejected by presenter.");
+                  disconnect();
+                }
+              } 
+              else if (payload.type === "status-update") {
+                handleStatusUpdate(payload);
+              }
+            }
+          } catch (err) {
+            console.error('[WS Message Error]', err);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.error('[WS Connection Error]', err);
+          alert('WebSocket connection failed. Ensure you are on the same Wi-Fi network.');
+          disconnect();
+        };
+
+        ws.onclose = () => {
+          console.log('[WS Connection Closed]');
+          if (isConnected) {
+            alert('Disconnected from presentation.');
+            disconnect();
+          }
+        };
+
+      } catch (err) {
+        console.error('[Connection Setup Error]', err);
+        alert('Failed to connect: ' + err.message);
+        disconnect();
+      }
+    }
+
+    function disconnect() {
+      isConnected = false;
+      aesKey = null;
+      aesKeyBytes = null;
+      keys = null;
+      if (ws) {
+        try { ws.close(); } catch(e){}
+        ws = null;
+      }
+
+      // Reset UI to setup state
+      document.getElementById('controller-view').classList.remove('active');
+      document.getElementById('connect-view').classList.add('active');
+      document.getElementById('pairing-setup-form').style.display = 'flex';
+      document.getElementById('pairing-status-panel').style.display = 'none';
+      document.getElementById('fingerprint-display').style.display = 'none';
+    }
+
+    function updateStatusText(text) {
+      document.getElementById('connection-status-text').innerText = text;
+    }
+
+    // Encryption & Decryption wrappers for GCM (matches Go & React Native)
+    async function encryptData(plaintext) {
+      if (isFallback) {
+        return window.CryptoFallback.encryptData(plaintext, aesKeyBytes);
+      }
+      if (!aesKey) return null;
+      const encoder = new TextEncoder();
+      const plaintextBytes = encoder.encode(plaintext);
+
+      // Generate a 12-byte random nonce
+      const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+
+      // Encrypt GCM
+      const ciphertextBuffer = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: nonce },
+        aesKey,
+        plaintextBytes
+      );
+      const ciphertextBytes = new Uint8Array(ciphertextBuffer);
+
+      // Concat nonce (12 bytes) + ciphertext (data + tag)
+      const combined = new Uint8Array(nonce.length + ciphertextBytes.length);
+      combined.set(nonce, 0);
+      combined.set(ciphertextBytes, nonce.length);
+
+      return bytesToBase64(combined);
+    }
+
+    async function decryptData(ciphertextBase64) {
+      if (isFallback) {
+        return window.CryptoFallback.decryptData(ciphertextBase64, aesKeyBytes);
+      }
+      if (!aesKey) return null;
+      const combined = base64ToBytes(ciphertextBase64);
+
+      const nonceSize = 12;
+      if (combined.length < nonceSize) {
+        throw new Error("Ciphertext too short");
+      }
+
+      const nonce = combined.slice(0, nonceSize);
+      const ciphertextBytes = combined.slice(nonceSize);
+
+      const decryptedBuffer = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: nonce },
+        aesKey,
+        ciphertextBytes
+      );
+
+      return new TextDecoder().decode(decryptedBuffer);
+    }
+
+    async function sendEncryptedPayload(plaintext) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const encText = await encryptData(plaintext);
+      if (encText) {
+        ws.send(JSON.stringify({
+          type: "encrypted",
+          ciphertext: encText
+        }));
+      }
+    }
+
+    async function sendControlCommand(cmd) {
+      await sendEncryptedPayload(JSON.stringify(cmd));
+    }
+
+    // Handle received slide details & index
+    function handleStatusUpdate(payload) {
+      currentSlide = payload.currentSlideIndex;
+      totalSlides = payload.totalSlides;
+      
+      // Update header presentation name
+      document.getElementById('header-prez-name').innerText = payload.presentationName || "Presentation";
+
+      // Update control touchpad values
+      document.getElementById('current-slide-num').innerText = currentSlide;
+      document.getElementById('total-slide-num').innerText = totalSlides;
+
+      // Update button enabled states
+      document.getElementById('prev-btn').disabled = (currentSlide === 1);
+      document.getElementById('next-btn').disabled = (currentSlide === totalSlides);
+
+      // Update speaker notes content
+      document.getElementById('notes-text').innerText = payload.notes || "No notes available for this slide.";
+
+      // Populate Table of Contents (ToC)
+      const tocList = document.getElementById('toc-list');
+      tocList.innerHTML = '';
+      if (payload.toc && payload.toc.length > 0) {
+        payload.toc.forEach(item => {
+          const div = document.createElement('div');
+          div.className = `toc-item ${item.index === currentSlide ? 'active' : ''}`;
+          div.onclick = () => jumpToSlide(item.index);
+          
+          div.innerHTML = `
+            <span>${item.title || ('Slide ' + item.index)}</span>
+            <span class="toc-item-index">${item.index}</span>
+          `;
+          tocList.appendChild(div);
+        });
+      }
+
+      // Handle slide images (Cache and Preview)
+      const key = `${payload.presentationName}_${currentSlide}`;
+      if (payload.slideImage) {
+        slideImages[key] = payload.slideImage;
+      }
+      
+      const cachedImage = slideImages[key] || "";
+      const previewImg = document.getElementById('laser-preview-img');
+      const noPreview = document.getElementById('laser-no-preview');
+
+      if (cachedImage) {
+        previewImg.src = `data:image/jpeg;base64,${cachedImage}`;
+        previewImg.style.display = 'block';
+        noPreview.style.display = 'none';
+      } else {
+        previewImg.src = '';
+        previewImg.style.display = 'none';
+        noPreview.style.display = 'block';
+      }
+    }
+
+    // Navigation and Action Handlers
+    document.getElementById('prev-btn').onclick = () => sendControlCommand({ action: "prev" });
+    document.getElementById('next-btn').onclick = () => sendControlCommand({ action: "next" });
+    document.getElementById('fullscreen-btn').onclick = () => sendControlCommand({ action: "fullscreen" });
+
+    function jumpToSlide(index) {
+      sendControlCommand({ action: "goto", index: index });
+    }
+
+    // Switch between panels (Control, Notes, Laser)
+    async function switchPanel(tabName) {
+      activeTab = tabName;
+      
+      // Update active tab button style
+      const tabButtons = document.querySelectorAll('.tab-button');
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      
+      const activeBtnIndex = tabName === 'control' ? 0 : tabName === 'notes' ? 1 : 2;
+      tabButtons[activeBtnIndex].classList.add('active');
+
+      // Update active panel display
+      document.getElementById('control-panel').classList.remove('active');
+      document.getElementById('notes-panel').classList.remove('active');
+      document.getElementById('laser-panel').classList.remove('active');
+      
+      document.getElementById(`${tabName}-panel`).classList.add('active');
+
+      // Send active tab change to desktop (triggering slide updates with images if laser/notes active)
+      if (isConnected) {
+        await sendControlCommand({ action: "set-active-tab", tab: tabName });
+      }
+    }
+
+    // Swipe gestures on touchpad
+    const touchpad = document.getElementById('touchpad');
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+
+    touchpad.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+    });
+
+    touchpad.addEventListener('touchend', (e) => {
+      const diffX = e.changedTouches[0].clientX - startX;
+      const diffY = e.changedTouches[0].clientY - startY;
+      const elapsedTime = Date.now() - startTime;
+      
+      const threshold = 40; // min distance
+      const tapThreshold = 8; // max displacement for tap
+      const tapTimeLimit = 300; // max duration for tap
+
+      // Check for swipe
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold) {
+        if (diffX > 0) {
+          sendControlCommand({ action: "prev" }); // swipe right -> previous
+        } else {
+          sendControlCommand({ action: "next" }); // swipe left -> next
+        }
+      } 
+      // Check for tap
+      else if (Math.abs(diffX) < tapThreshold && Math.abs(diffY) < tapThreshold && elapsedTime < tapTimeLimit) {
+        const touchpadRect = touchpad.getBoundingClientRect();
+        const tapX = e.changedTouches[0].clientX - touchpadRect.left;
+        
+        // Split screen: left tap goes prev, right tap goes next
+        if (tapX < touchpadRect.width / 2) {
+          sendControlCommand({ action: "prev" });
+        } else {
+          sendControlCommand({ action: "next" });
+        }
+      }
+    });
+
+    // Laser pointer coordinate tracking
+    const laserOverlay = document.getElementById('laser-touch-overlay');
+    const laserWrapper = document.getElementById('laser-wrapper');
+    const laserPreview = document.getElementById('laser-preview-img');
+    const laserPointerDot = document.getElementById('laser-pointer-dot');
+    let isLaserPointing = false;
+
+    function handleLaserPointer(clientX, clientY) {
+      if (!isConnected) return;
+      
+      let rect = null;
+      // Calculate coordinates relative to the preview image if it's visible, otherwise fallback to the wrapper
+      if (laserPreview.style.display !== 'none') {
+        rect = laserPreview.getBoundingClientRect();
+      } else {
+        rect = laserWrapper.getBoundingClientRect();
+      }
+
+      // Calculate relative coordinate percentages (0.0 to 1.0)
+      let x = (clientX - rect.left) / rect.width;
+      let y = (clientY - rect.top) / rect.height;
+
+      // Clamp values
+      x = Math.max(0, Math.min(1.0, x));
+      y = Math.max(0, Math.min(1.0, y));
+
+      // Display dot locally on phone
+      const wrapperRect = laserWrapper.getBoundingClientRect();
+      const dotX = clientX - wrapperRect.left;
+      const dotY = clientY - wrapperRect.top;
+      
+      laserPointerDot.style.left = `${dotX}px`;
+      laserPointerDot.style.top = `${dotY}px`;
+      laserPointerDot.style.display = 'block';
+
+      // Send to presentation screen
+      sendControlCommand({
+        action: "laser",
+        x: x,
+        y: y
+      });
+    }
+
+    function stopLaserPointer() {
+      if (!isLaserPointing) return;
+      isLaserPointing = false;
+      laserPointerDot.style.display = 'none';
+      sendControlCommand({ action: "laser-off" });
+    }
+
+    // Touch events for Laser
+    laserOverlay.addEventListener('touchstart', (e) => {
+      e.preventDefault(); // prevent scroll bounce
+      isLaserPointing = true;
+      handleLaserPointer(e.touches[0].clientX, e.touches[0].clientY);
+    });
+
+    laserOverlay.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (isLaserPointing) {
+        handleLaserPointer(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    });
+
+    laserOverlay.addEventListener('touchend', stopLaserPointer);
+    laserOverlay.addEventListener('touchcancel', stopLaserPointer);
+
+    // Mouse fallback events for debugging Laser
+    laserOverlay.addEventListener('mousedown', (e) => {
+      isLaserPointing = true;
+      handleLaserPointer(e.clientX, e.clientY);
+    });
+
+    laserOverlay.addEventListener('mousemove', (e) => {
+      if (isLaserPointing) {
+        handleLaserPointer(e.clientX, e.clientY);
+      }
+    });
+
+    window.addEventListener('mouseup', stopLaserPointer);
+  </script>
+</body>
+</html>

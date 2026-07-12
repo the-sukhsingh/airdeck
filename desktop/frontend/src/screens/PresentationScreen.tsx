@@ -78,6 +78,48 @@ export default function PresentationScreen({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [slideImage, setSlideImage] = useState<string>("");
   const [imageLoading, setImageLoading] = useState<boolean>(false);
+  const [remoteType, setRemoteType] = useState<"app" | "web">("app");
+  const [selectedIp, setSelectedIp] = useState<string>("");
+
+  const getBestIp = (ips: string[]) => {
+    const wifiIps = ips.filter(ip => 
+      ip.startsWith("192.168.") && 
+      !ip.startsWith("192.168.56.") && 
+      !ip.startsWith("192.168.137.")
+    );
+    if (wifiIps.length > 0) return wifiIps[0];
+    const corporateIps = ips.filter(ip => ip.startsWith("10."));
+    if (corporateIps.length > 0) return corporateIps[0];
+    const privateClassB = ips.filter(ip => 
+      ip.startsWith("172.") && 
+      !ip.startsWith("172.17.") && 
+      !ip.startsWith("172.18.") && 
+      !ip.startsWith("172.20.") && 
+      !ip.startsWith("172.21.") && 
+      !ip.startsWith("172.22.") && 
+      !ip.startsWith("172.23.") && 
+      !ip.startsWith("172.24.") && 
+      !ip.startsWith("172.25.") && 
+      !ip.startsWith("172.26.") && 
+      !ip.startsWith("172.27.") && 
+      !ip.startsWith("172.28.") && 
+      !ip.startsWith("172.29.") && 
+      !ip.startsWith("172.30.") && 
+      !ip.startsWith("172.31.")
+    );
+    if (privateClassB.length > 0) return privateClassB[0];
+    const fallback192 = ips.find(ip => ip.startsWith("192.168."));
+    if (fallback192) return fallback192;
+    const fallback172 = ips.find(ip => ip.startsWith("172."));
+    if (fallback172) return fallback172;
+    return ips[0] || "127.0.0.1";
+  };
+
+  useEffect(() => {
+    if (activeSession && activeSession.localIps && activeSession.localIps.length > 0) {
+      setSelectedIp(getBestIp(activeSession.localIps));
+    }
+  }, [activeSession]);
 
   const [slideDrawings, setSlideDrawings] = useState<Record<number, DrawPath[]>>({});
   const [activePath, setActivePath] = useState<DrawPath | null>(null);
@@ -117,22 +159,66 @@ export default function PresentationScreen({
     activePathRef.current = activePath;
   }, [activePath]);
 
+  // Refs for laser lerping
+  const targetLaserPosRef = useRef<{ x: number; y: number } | null>(null);
+  const currentLaserPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Smooth laser animation loop (lerp)
+  useEffect(() => {
+    let animFrameId: number;
+
+    const updateLoop = () => {
+      const target = targetLaserPosRef.current;
+      let current = currentLaserPosRef.current;
+
+      if (target) {
+        if (!current) {
+          current = { ...target };
+        } else {
+          // Lerp factor of 0.20 gives a highly responsive and buttery-smooth movement
+          const lerpFactor = 0.20;
+          current = {
+            x: current.x + (target.x - current.x) * lerpFactor,
+            y: current.y + (target.y - current.y) * lerpFactor,
+          };
+        }
+        currentLaserPosRef.current = current;
+        setLocalLaserPos(current);
+
+        setLaserHistory((prev) => {
+          // Prevent adding duplicate/stagnant coordinates to keep the tail neat
+          if (prev.length > 0) {
+            const last = prev[prev.length - 1];
+            const dist = Math.hypot(current!.x - last.x, current!.y - last.y);
+            if (dist < 0.0005) return prev;
+          }
+          const next = [...prev, current!];
+          if (next.length > 18) { // Generates a slightly longer, smoother tail at 60+fps
+            next.shift();
+          }
+          return next;
+        });
+      } else {
+        currentLaserPosRef.current = null;
+        setLocalLaserPos((prev) => (prev !== null ? null : prev));
+        setLaserHistory((prev) => (prev.length > 0 ? [] : prev));
+      }
+
+      animFrameId = requestAnimationFrame(updateLoop);
+    };
+
+    animFrameId = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animFrameId);
+  }, []);
+
   // Listen for Laser events
   useEffect(() => {
     EventsOn("laser-move", (pos: { x: number; y: number }) => {
-      setLocalLaserPos(pos);
-      setLaserHistory((prev) => {
-        const next = [...prev, pos];
-        if (next.length > 8) {
-          next.shift();
-        }
-        return next;
-      });
+      targetLaserPosRef.current = pos;
     });
 
     EventsOn("laser-hide", () => {
-      setLocalLaserPos(null);
-      setLaserHistory([]);
+      targetLaserPosRef.current = null;
     });
 
     return () => {
@@ -927,10 +1013,49 @@ export default function PresentationScreen({
 
         >
           {/* QR Code Container */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-xs)" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-md)", width: "100%" }}>
             <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
               Pair Remote
             </span>
+            
+            {/* Toggle App / Web */}
+            <div style={{ display: "flex", width: "100%", border: "1px solid var(--border-color)", borderRadius: "var(--radius-medium)", overflow: "hidden", padding: "2px", backgroundColor: "var(--bg-primary)" }}>
+              <button
+                style={{
+                  flex: 1,
+                  padding: "6px 12px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "none",
+                  borderRadius: "var(--radius-subtle)",
+                  backgroundColor: remoteType === "app" ? "var(--text-primary)" : "transparent",
+                  color: remoteType === "app" ? "var(--bg-primary)" : "var(--text-secondary)",
+                  transition: "all 0.2s ease",
+                }}
+                onClick={() => setRemoteType("app")}
+              >
+                Mobile App
+              </button>
+              <button
+                style={{
+                  flex: 1,
+                  padding: "6px 12px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "none",
+                  borderRadius: "var(--radius-subtle)",
+                  backgroundColor: remoteType === "web" ? "var(--text-primary)" : "transparent",
+                  color: remoteType === "web" ? "var(--bg-primary)" : "var(--text-secondary)",
+                  transition: "all 0.2s ease",
+                }}
+                onClick={() => setRemoteType("web")}
+              >
+                Web Browser
+              </button>
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -944,18 +1069,91 @@ export default function PresentationScreen({
               }}
             >
               <QRCodeSVG
-                value={JSON.stringify({
-                  ips: activeSession.localIps,
-                  port: activeSession.signalingPort,
-                  roomId: activeSession.roomId,
-                  passcode: activeSession.passcode,
-                })}
+                value={
+                  remoteType === "app"
+                    ? JSON.stringify({
+                        ips: activeSession.localIps,
+                        port: activeSession.signalingPort,
+                        roomId: activeSession.roomId,
+                        passcode: activeSession.passcode,
+                      })
+                    : `http://${selectedIp || getBestIp(activeSession.localIps)}:${activeSession.signalingPort}/?room=${activeSession.roomId}&passcode=${activeSession.passcode}`
+                }
                 size={160}
                 level="M"
                 fgColor="#000000"
                 bgColor="#ffffff"
               />
             </div>
+
+            {remoteType === "web" && (() => {
+              const currentIp = selectedIp || getBestIp(activeSession.localIps);
+              const webUrl = `http://${currentIp}:${activeSession.signalingPort}/?room=${activeSession.roomId}&passcode=${activeSession.passcode}`;
+              return (
+                <div style={{ textAlign: "center", width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  
+                  {activeSession.localIps.length > 1 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%", textAlign: "left" }}>
+                      <span style={{ fontSize: "9px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
+                        Select Network IP (Wi-Fi):
+                      </span>
+                      <select
+                        value={currentIp}
+                        onChange={(e) => setSelectedIp(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          backgroundColor: "var(--bg-primary)",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "var(--radius-medium)",
+                          color: "var(--text-primary)",
+                          fontSize: "11px",
+                          fontFamily: "var(--font-mono)",
+                          outline: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {activeSession.localIps.map((ip) => {
+                          let label = "";
+                          if (ip.startsWith("192.168.137.")) label = " (Hotspot)";
+                          else if (ip.startsWith("172.18.") || ip.startsWith("172.21.")) label = " (Virtual Switch / WSL)";
+                          else if (ip.startsWith("192.168.31.")) label = " (Physical Wi-Fi)";
+                          return (
+                            <option key={ip} value={ip}>
+                              {ip}{label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
+                    <span style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                      Or open this link on mobile:
+                    </span>
+                    <a
+                      href={webUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: "11px",
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--text-primary)",
+                        textDecoration: "underline",
+                        wordBreak: "break-all",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {webUrl.split("/?")[0]}
+                    </a>
+                    <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                      (Room: <strong>{activeSession.roomId}</strong>, Pass: <strong>{activeSession.passcode}</strong>)
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Connection Request Area / Status */}

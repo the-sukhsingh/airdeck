@@ -1008,7 +1008,7 @@ func (a *App) handleDecryptedPayload(payload []byte) {
 		a.sendSlidesUpdate()
 	case "set-active-tab":
 		a.activeClientTab = cmd.Tab
-		if cmd.Tab == "laser" {
+		if cmd.Tab == "laser" || cmd.Tab == "notes" {
 			a.sendSlidesUpdate()
 		}
 	}
@@ -1053,7 +1053,7 @@ func (a *App) sendSlidesUpdate() {
 	go func() {
 		// 1. Fetch slide image for WebRTC (only needed for Wifi when the mobile is actively on the laser tab)
 		var slideImage string
-		if activeClientTab == "laser" && (prezSource == "pptx" || prezSource == "pdf") {
+		if (activeClientTab == "laser" || activeClientTab == "notes") && (prezSource == "pptx" || prezSource == "pdf") {
 			img, err := a.GetSlideImageCompressed(prezID, slideIndex)
 			if err == nil {
 				slideImage = img
