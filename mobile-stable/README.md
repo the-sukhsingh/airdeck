@@ -1,68 +1,87 @@
-# AirDeck Controller (Mobile)
+# 📱 AirDeck Controller (Mobile Remote)
 
-This is the mobile remote controller app for the **AirDeck** secure presentation ecosystem. It enables you to control presentation slides running on your laptop directly from your phone over local Wi-Fi or Bluetooth.
+[![Mobile OS](https://img.shields.io/badge/Mobile-Android%20%7C%20iOS-lightgrey)](#)
+[![Expo Mobile](https://img.shields.io/badge/Mobile-React%20Native%20%7C%20Expo-000020.svg?logo=expo)](#)
+[![Security](https://img.shields.io/badge/Security-E2EE%20%7C%20AES--256--GCM%20%7C%20P--256%20ECDH-success)](#)
+[![Transport](https://img.shields.io/badge/Transport-WebRTC%20%7C%20BLE%20%7C%20WebSocket-orange)](#)
 
-Built with **React Native (Expo)**, TypeScript, and styled using a clean minimalist design.
-
----
-
-## ✨ Features
-
-- **Minimal QR Pairing:** Point your phone camera at the QR code displayed on the desktop app to pair instantly over Wi-Fi. No manual IP typing or passcode entries required.
-- **Offline Bluetooth Mode (BLE):** Scan and connect to your laptop directly using Bluetooth Low Energy (BLE) for environments without a shared Wi-Fi network.
-- **Slide Notes & Table of Contents:** Displays real-time presenter notes and slide titles on your phone screen so you stay on track.
-- **Gesture Control Touchpad:** Swipe and tap on the controller touchpad to navigate slides seamlessly.
-- **End-to-End Encrypted (E2EE):** Automatically negotiates a cryptographic shared key (ECDH P-256) on connection, encrypting all control packets using AES-256-GCM.
+AirDeck Controller is the mobile remote control application for the AirDeck presentation companion ecosystem. Built using **React Native & Expo**, the app pairs with the presenter desktop client to navigate slides, view speaker notes, browse Table of Contents, and guide the laser pointer remotely.
 
 ---
 
-## 🛠️ Prerequisites
+## ✨ Interface & Gesture Features
 
-To run the mobile application locally, you will need:
-- **Node.js** (LTS) & npm.
-- **Expo Go** app installed on your physical iOS/Android device, or configured local Emulators (Android Studio / Xcode).
-- **Physical Device Permissions:** The app requires access to the **Camera** (for QR scanning) and **Location/Bluetooth** (for BLE scanning and connecting).
+- **Pairing Camera Scanner**: Features a built-in camera layout that instantly parses connection endpoints and derived credentials from the desktop QR code.
+- **Gesture touchpad**: Swipe horizontally to change slides and tap to trigger animations.
+- **Presenter notes dashboard**: Pulls speaker notes and text sections in real-time, matching notes to the currently visible slide index.
+- **Table of contents browser**: Displays slide previews, allowing users to scroll and tap specific slide rows to jump directly to slides.
+- **Laser Pointer tracker**: Tracks touch drag positions (X, Y coordinates), encrypting and syncing them to draw a virtual pointer on the presentation desktop monitor.
+
+---
+
+## 📡 Transport Compatibility & Fallbacks
+
+AirDeck is designed to adapt depending on the runtime environment:
+
+### 1. Expo Go Sandbox (WebSockets Fallback)
+When run inside the standard **Expo Go** application sandbox, native binary modules (like native WebRTC peer drivers and Bluetooth LE Central managers) are not bundled. 
+- **Behavior**: The controller detects this environment and falls back to transmitting E2EE packets directly over a local network WebSocket connection.
+- **Benefit**: Simplifies rapid UI/UX iterations and remote testing without compilation delays.
+
+### 2. Compiled Native Builds (Full WebRTC & BLE Support)
+To utilize direct peer-to-peer WebRTC connections or completely offline Bluetooth LE connectivity, the application must be compiled locally with its native layers.
+- **WebRTC Mode**: Creates a direct Peer-to-Peer Data Channel with the desktop app, ensuring minimal latencies.
+- **BLE Mode**: Runs offline by scanning for the desktop peripheral and transmitting commands directly using Bluetooth GATT services.
+
+---
+
+## 🔒 Permission Requirements
+
+To enable all features, make sure your device permits:
+- **Camera Access**: Needed to scan the pairing QR code.
+- **Bluetooth / Location Access**: Needed for scanning and connecting to the presenter via Bluetooth Low Energy (BLE).
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Install Dependencies
-Navigate into the mobile directory and install the packages:
+Ensure you are inside the `mobile-stable` directory before running commands:
 ```bash
 cd mobile-stable
+```
+
+### 1. Install Dependencies
+```bash
 npm install
 ```
 
-### 2. Start the Development Server
+### 2. Start Expo Go Dev Server
 ```bash
 npm run start
 # or
 npx expo start
 ```
-*This starts the Expo bundler. Scan the terminal's QR code using your phone's camera (iOS) or the Expo Go app (Android) to load the app.*
+Scan the resulting terminal QR code using **Expo Go** (Android) or the native Camera app (iOS) to load the UI.
 
-### 3. Run Native Builds (Recommended for BLE/WebRTC support)
-To compile the native app binaries locally on your computer:
+### 3. Run Native Local Compilation
+To compile native modules locally (highly recommended to test BLE/WebRTC capabilities):
 ```bash
-# Android Build
+# Android
 npm run android
 
-# iOS Build
+# iOS
 npm run ios
 ```
-*Note: Using a native build is recommended because features like native WebRTC and BLE plx drivers require native compilation.*
 
 ---
 
-## 📁 File Structure
+## 📁 Source Code Directory Layout
 
-- `/app`: Main application screens and routing logic:
-  - `App.tsx`: App entry, handles global theme, screen routing, and connection service hooks.
-  - `/screens/ConnectScreen.tsx`: The minimalist welcome page for scanning QR codes and BLE presenters.
-  - `/screens/AuthenticatingScreen.tsx`: Secure handshake progress page.
-  - `/screens/ControllerScreen.tsx`: Touchpad gesture pad, slide list view, notes panel, and status dashboard.
-  - `/components/QRScannerModal.tsx`: Native camera view overlay for scanning pairing codes.
-- `/src/services`: Connection and crypto utilities:
-  - `connection.ts`: Manages WebRTC connection states, WebSocket handshakes, and BLE services.
-  - `crypto.ts`: Implements SHA-256 hashing, P-256 ECDH, and AES-GCM decryption/encryption helpers.
+- [app/App.tsx](file:///e:/Projects/ppt-dapp/mobile-stable/app/App.tsx): Main entry, routing wrapper, and global connection contexts.
+- [app/_layout.tsx](file:///e:/Projects/ppt-dapp/mobile-stable/app/_layout.tsx): Root layout setup.
+- [app/index.tsx](file:///e:/Projects/ppt-dapp/mobile-stable/app/index.tsx): Launch screen routing logic.
+- [app/screens/ConnectScreen.tsx](file:///e:/Projects/ppt-dapp/mobile-stable/app/screens/ConnectScreen.tsx): Wi-Fi QR pairing scanner and Bluetooth discovery list.
+- [app/screens/AuthenticatingScreen.tsx](file:///e:/Projects/ppt-dapp/mobile-stable/app/screens/AuthenticatingScreen.tsx): P-256 ECDH handshake progress screen.
+- [app/screens/ControllerScreen.tsx](file:///e:/Projects/ppt-dapp/mobile-stable/app/screens/ControllerScreen.tsx): Laser touchpad, presentation controls, and presenter notes tabs.
+- [src/services/connection.ts](file:///e:/Projects/ppt-dapp/mobile-stable/src/services/connection.ts): Network adapters orchestrating WebSocket, WebRTC, and BLE channels.
+- [src/services/crypto.ts](file:///e:/Projects/ppt-dapp/mobile-stable/src/services/crypto.ts): Mobile side SHA-256 KDF and AES-GCM decryption/encryption helpers.
