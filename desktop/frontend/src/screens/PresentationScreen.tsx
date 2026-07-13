@@ -18,8 +18,10 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  PanelRight,
 } from "lucide-react";
 import { Presentation, SessionInfo, ConnectionRequest } from "../types";
+import WindowControls from "../components/WindowControls";
 
 interface Point {
   x: number;
@@ -80,6 +82,8 @@ export default function PresentationScreen({
   const [imageLoading, setImageLoading] = useState<boolean>(false);
   const [remoteType, setRemoteType] = useState<"app" | "web">("app");
   const [selectedIp, setSelectedIp] = useState<string>("");
+  const [notesFontSize, setNotesFontSize] = useState<number>(14);
+  const [showSidebar, setShowSidebar] = useState<boolean>(true);
 
   const getBestIp = (ips: string[]) => {
     const wifiIps = ips.filter(ip => 
@@ -672,6 +676,7 @@ export default function PresentationScreen({
     >
       {/* Presenter Top Bar */}
       <div
+        className="draggable-area"
         style={{
           height: "64px",
           borderBottom: "1px solid var(--border-color)",
@@ -712,6 +717,22 @@ export default function PresentationScreen({
             )}
           </div>
 
+          {/* Toggle Sidebar Button */}
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => setShowSidebar((prev) => !prev)}
+            title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}
+            style={{ 
+              width: "32px", 
+              height: "32px",
+              color: showSidebar ? "var(--text-primary)" : "var(--text-secondary)",
+              backgroundColor: showSidebar ? "var(--bg-active)" : "var(--bg-secondary)",
+            }}
+          >
+            <PanelRight size={14} />
+          </button>
+
           {/* Theme Toggle Button */}
           <button
             type="button"
@@ -726,6 +747,7 @@ export default function PresentationScreen({
           <button className="btn btn-danger btn-small" onClick={onEndPresentation}>
             End Presentation
           </button>
+          <WindowControls />
         </div>
       </div>
 
@@ -956,40 +978,45 @@ export default function PresentationScreen({
           </div>
 
           {/* Slide Navigation & Progress */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-            {/* Rounded Progress bar */}
-            <div style={{ height: "4px", backgroundColor: "var(--bg-tertiary)", width: "100%", borderRadius: "var(--radius-full)", overflow: "hidden" }}>
-              <div
-                style={{
-                  height: "100%",
-                  backgroundColor: "var(--text-primary)",
-                  width: `${progressPercent}%`,
-                  transition: "width 0.2s ease",
-                  borderRadius: "var(--radius-full)",
-                }}
-              />
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+            {/* Slide Previews Strip */}
+            
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-                <button
-                  className="btn btn-small"
-                  onClick={prevSlide}
-                  disabled={currentSlide === 1}
-                >
-                  <ChevronLeft size={16} /> PREV
-                </button>
-                <button
-                  className="btn btn-small"
-                  onClick={nextSlide}
-                  disabled={currentSlide === activePrez.totalSlides}
-                >
-                  NEXT <ChevronRight size={16} />
-                </button>
+            {/* Progress bar & Control Buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", marginTop: "4px" }}>
+              <div style={{ height: "4px", backgroundColor: "var(--bg-tertiary)", width: "100%", borderRadius: "var(--radius-full)", overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    backgroundColor: "var(--text-primary)",
+                    width: `${progressPercent}%`,
+                    transition: "width 0.2s ease",
+                    borderRadius: "var(--radius-full)",
+                  }}
+                />
               </div>
 
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px" }}>
-                SLIDE {currentSlide} OF {activePrez.totalSlides}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                  <button
+                    className="btn btn-small"
+                    onClick={prevSlide}
+                    disabled={currentSlide === 1}
+                  >
+                    <ChevronLeft size={14} /> PREV
+                  </button>
+                  <button
+                    className="btn btn-small"
+                    onClick={nextSlide}
+                    disabled={currentSlide === activePrez.totalSlides}
+                  >
+                    NEXT <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-secondary)" }}>
+                  SLIDE {currentSlide} OF {activePrez.totalSlides}
+                </div>
               </div>
             </div>
           </div>
@@ -998,20 +1025,23 @@ export default function PresentationScreen({
         {/* Presenter Metadata, Room, and Notes Panel */}
         <div
           style={{
-            width: "400px",
-            borderLeft: "1px solid var(--border-color)",
+            width: showSidebar ? "400px" : "0px",
+            borderLeft: showSidebar ? "1px solid var(--border-color)" : "0px solid transparent",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "flex-start",
             backgroundColor: "var(--bg-secondary)",
-            padding: "var(--space-lg)",
-            gap: "var(--space-lg)",
+            padding: showSidebar ? "var(--space-lg)" : "0px",
+            gap: showSidebar ? "var(--space-lg)" : "0px",
             overflowY: "auto",
-            transition: "background-color 0.2s ease, border-color 0.2s ease",
+            overflowX: "hidden",
+            opacity: showSidebar ? 1 : 0,
+            transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, border-left 0.25s ease, background-color 0.2s ease, border-color 0.2s ease",
           }}
-
         >
+          {/* Inner container to prevent layout wrapping during width collapse */}
+          <div style={{ width: "352px", display: "flex", flexDirection: "column", gap: "var(--space-lg)", alignItems: "center", flexShrink: 0 }}>
           {/* QR Code Container */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-md)", width: "100%" }}>
             <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
@@ -1226,9 +1256,29 @@ export default function PresentationScreen({
 
           {/* Speaker Notes Area */}
           <div style={{ width: "100%", marginTop: "var(--space-md)", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "8px" }}>
-              Speaker Notes
-            </span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                Speaker Notes
+              </span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button
+                  className="btn btn-icon btn-small"
+                  style={{ width: "20px", height: "20px", padding: 0, fontSize: "10px" }}
+                  onClick={() => setNotesFontSize((prev) => Math.max(10, prev - 2))}
+                  title="Decrease Font Size"
+                >
+                  -
+                </button>
+                <button
+                  className="btn btn-icon btn-small"
+                  style={{ width: "20px", height: "20px", padding: 0, fontSize: "10px" }}
+                  onClick={() => setNotesFontSize((prev) => Math.min(30, prev + 2))}
+                  title="Increase Font Size"
+                >
+                  +
+                </button>
+              </div>
+            </div>
             <div
               style={{
                 flex: 1,
@@ -1239,10 +1289,11 @@ export default function PresentationScreen({
                 overflowY: "auto",
               }}
             >
-              <p style={{ fontSize: "13px", lineHeight: "1.6", color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
+              <p style={{ fontSize: `${notesFontSize}px`, lineHeight: "1.6", color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
                 {currentSlideData?.notes || "No notes for this slide."}
               </p>
             </div>
+          </div>
           </div>
         </div>
       </div>

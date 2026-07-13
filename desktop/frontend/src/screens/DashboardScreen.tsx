@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Presentation } from "../types";
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
+import WindowControls from "../components/WindowControls";
 
 interface DashboardScreenProps {
   library: Presentation[];
@@ -196,15 +197,16 @@ export default function DashboardScreen({
 
   return (
     <div className="container">
+      <WindowControls />
       {/* Sidebar Navigation */}
       <div className="sidebar">
-        <div>
+        <div className="draggable-area">
           <h2
             style={{
               letterSpacing: "-0.03em",
-              fontSize: "20px",
-              fontWeight: 600,
-              marginBottom: "2px",
+              fontSize: "18px",
+              fontWeight: 500,
+              marginBottom: "4px",
             }}
           >
             AIRDECK
@@ -212,7 +214,7 @@ export default function DashboardScreen({
           <span
             style={{
               fontSize: "9px",
-              letterSpacing: "0.1em",
+              letterSpacing: "0.05em",
               color: "var(--text-muted)",
               textTransform: "uppercase",
               fontWeight: 500,
@@ -223,49 +225,26 @@ export default function DashboardScreen({
         </div>
 
         {/* Sidebar folder selections */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1 }}>
-          <h3 style={{ fontSize: "10px", color: "var(--text-muted)", marginBottom: "var(--space-xs)" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+          <h3 style={{ fontSize: "10px", color: "var(--text-muted)", marginBottom: "var(--space-sm)" }}>
             Folders
           </h3>
+          
           <button
-            style={{
-              background: "none",
-              border: "none",
-              color: currentFolder === "" ? "var(--text-primary)" : "var(--text-secondary)",
-              fontWeight: currentFolder === "" ? "600" : "400",
-              textAlign: "left",
-              fontSize: "13px",
-              padding: "6px 0",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
+            className={`sidebar-nav-btn ${currentFolder === "" ? "active" : ""}`}
             onClick={() => setCurrentFolder("")}
           >
             All Decks
           </button>
 
           <button
-            style={{
-              background: "none",
-              border: "none",
-              color: currentFolder === "starred" ? "var(--text-primary)" : "var(--text-secondary)",
-              fontWeight: currentFolder === "starred" ? "600" : "400",
-              textAlign: "left",
-              fontSize: "13px",
-              padding: "6px 0",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
+            className={`sidebar-nav-btn ${currentFolder === "starred" ? "active" : ""}`}
             onClick={() => setCurrentFolder("starred")}
           >
             <Star
               size={12}
-              fill={currentFolder === "starred" ? "var(--text-primary)" : "none"}
-              style={{ color: "currentColor" }}
-            />{" "}
+              fill={currentFolder === "starred" ? "currentColor" : "none"}
+            />
             Starred
           </button>
 
@@ -273,17 +252,7 @@ export default function DashboardScreen({
           {folders.map((folder) => (
             <button
               key={folder}
-              style={{
-                background: "none",
-                border: "none",
-                color: currentFolder === folder ? "var(--text-primary)" : "var(--text-secondary)",
-                fontWeight: currentFolder === folder ? "600" : "400",
-                textAlign: "left",
-                fontSize: "13px",
-                padding: "6px 0",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
+              className={`sidebar-nav-btn ${currentFolder === folder ? "active" : ""}`}
               onClick={() => setCurrentFolder(folder)}
             >
               {folder}
@@ -293,20 +262,18 @@ export default function DashboardScreen({
           {/* New folder trigger button */}
           <button
             className="btn btn-small"
-            style={{ marginTop: "var(--space-md)", width: "fit-content" }}
+            style={{ marginTop: "var(--space-md)", width: "100%" }}
             onClick={() => setShowAddFolderModal(true)}
           >
-            <Plus size={12} /> Folder
+            <Plus size={12} /> New Folder
           </button>
         </div>
-
-
       </div>
 
       {/* Main Library Dashboard Area */}
       <div className="content">
-        {/* Actions panel */}
-        <div className="flex-between">
+        {/* Actions panel - draggable area for frameless window */}
+        <div className="draggable-area flex-between">
           <div>
             <h1>Library</h1>
             <p
@@ -328,8 +295,6 @@ export default function DashboardScreen({
           </div>
 
           <div style={{ display: "flex", gap: "var(--space-md)", alignItems: "center" }}>
-
-
             {/* Theme Toggle Button */}
             <button
               type="button"
@@ -337,14 +302,14 @@ export default function DashboardScreen({
               onClick={toggleTheme}
               title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
             >
-              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+              {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
             </button>
 
             <button className="btn btn-primary" onClick={handleUpload}>
-              <Upload size={14} /> Upload PPTX / PDF
+              <Upload size={13} /> Upload PPTX / PDF
             </button>
             <button className="btn" onClick={() => setShowGoogleLinkModal(true)}>
-              <Link2 size={14} /> Link Google Slides
+              <Link2 size={13} /> Link Google Slides
             </button>
           </div>
         </div>
@@ -443,7 +408,7 @@ export default function DashboardScreen({
                                 style={{
                                   width: "100%",
                                   height: "4px",
-                                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                                  backgroundColor: "var(--bg-tertiary)",
                                   borderRadius: "2px",
                                   overflow: "hidden",
                                 }}
